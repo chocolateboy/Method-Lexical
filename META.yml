@@ -1,0 +1,24 @@
+--- #YAML:1.0
+name:               Method-Lexical
+version:            0.01
+abstract:           private methods and lexical method overrides
+author:
+    - chocolateboy <chocolate@cpan.org>
+license:            perl
+distribution_type:  module
+configure_requires:
+    ExtUtils::MakeMaker:  0
+requires:
+    B::Hooks::EndOfScope:  0.05
+    B::Hooks::OP::Annotation:  0.30
+    B::Hooks::OP::Check:  0.14
+    Devel::Pragma:        0.40
+    ExtUtils::Depends:    0.301
+no_index:
+    directory:
+        - t
+        - inc
+generated_by:       ExtUtils::MakeMaker version 6.48
+meta-spec:
+    url:      http://module-build.sourceforge.net/META-spec-v1.4.html
+    version:  1.4

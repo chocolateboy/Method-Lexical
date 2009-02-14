@@ -1,0 +1,4 @@
+Revision history for Perl extension Method::Lexical.
+
+0.01  Sat Feb 14 21:07:12 GMT 2009
+    - original version; created by h2xs 1.23 with options -A --name=Method::Lexical

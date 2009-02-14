@@ -1,0 +1,13 @@
+Changes
+Lexical.xs
+lib/Method/Lexical.pm
+Makefile.PL
+MANIFEST
+META.yml
+mro.h
+ppport.h
+README
+t/01_use.t
+t/basic.t
+t/depth.t
+t/pod.t
