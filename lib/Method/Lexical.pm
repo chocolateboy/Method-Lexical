@@ -12,7 +12,7 @@ use Carp qw(croak carp);
 use Devel::Pragma ':all';
 use XSLoader;
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 our @CARP_NOT = qw(B::Hooks::EndOfScope);
 
 XSLoader::load(__PACKAGE__, $VERSION);
@@ -218,23 +218,19 @@ Method::Lexical - private methods and lexical method overrides
 
 =head1 SYNOPSIS
 
-    my $test = Test::Lexical->new();
+    my $test = bless {};
 
     $test->call_private(); # OK
     $test->call_dump();    # OK
 
     eval { $test->private() };
-    warn $@; # Can't locate object method "private" via package "Test::Lexical"
+    warn $@; # Can't locate object method "private" via package "main"
 
     eval { $test->dump() };
-    warn $@; # Can't locate object method "dump" via package "Test::Lexical"
+    warn $@; # Can't locate object method "dump" via package "main"
 
     {
-        package Test::Lexical;
-
         use feature qw(:5.10);
-
-        sub new { bless {} }
 
         use Method::Lexical
              private          => sub { 'private' },
@@ -267,22 +263,20 @@ can be supplied.
       bar              => \&bar,                   # code ref value
       new              => 'main::new',             # sub name value
       dump             => '+Data::Dump::dump',     # autoload Data::Dump
-     'My::foo'         => \&foo,                   # override/define My::foo
-     'UNIVERSAL::dump' => \&Data::Dump::dump,      # define UNIVERSAL::dump
-     'UNIVERSAL::isa'  => \&my_isa,                # override UNIVERSAL::isa
+     'UNIVERSAL::dump' => \&Data::Dump::dump,      # define an inherited method
+     'UNIVERSAL::isa'  => \&my_isa,                # override an inherited method
      -autoload         => 1,                       # autoload all subs passed by name
      -debug            => 1;                       # show diagnostic messages
 
-In addition, the following options are supported.
-
 =head1 OPTIONS
 
-C<Method::Lexical> options are prefixed with a C<-> to distinguish them from method names.
+C<Method::Lexical> options are prefixed with a hyphen to distinguish them from method names.
+The following options are supported.
 
 =head2 -autoload
 
-If the C<value> is a string containing a package-qualified subroutine name, then the subroutine's module can
-be automatically loaded. This can either be done on a per-method basis by prefixing the C<value>
+If the C<value> is a string containing a package-qualified subroutine name, then the subroutine's module is
+automatically loaded. This can either be done on a per-method basis by prefixing the C<value>
 with a C<+>, or for all named C<value> arguments by supplying the C<-autoload> option with a true value e.g.
 
     use Method::Lexical
@@ -305,8 +299,6 @@ or
 A trace of the module's actions can be enabled or disabled lexically by supplying the C<-debug> option
 with a true or false value. The trace is printed to STDERR.
 
-Tracing can be enabled globally by defining METHOD_LEXICAL_DEBUG as an environment variable
-
 e.g.
 
     use Method::Lexical
@@ -318,7 +310,7 @@ e.g.
 
 =head2 import
 
-C<mysub::import> can be called indirectly via C<use Method::Lexical> or can be overridden by subclasses to create
+C<Method::Lexical::import> can be called indirectly via C<use Method::Lexical> or can be overridden by subclasses to create
 lexically-scoped pragmas that export methods whose use is restricted to the calling scope e.g.
 
     package Universal::Dump;
@@ -353,35 +345,34 @@ Client code can then import lexical methods from the module:
 C<Method::Lexical::unimport> removes the specified lexical methods from the current scope, or all lexical methods 
 if no arguments are supplied.
 
-    use Foo;
     use Method::Lexical foo => \&foo;
+
+    my $self = bless {};
 
     {
         use Method::Lexical
-             bar => sub { ... },
-            'UNIVERSAL::baz' => sub { ... }
+             bar             => sub { ... },
+            'UNIVERSAL::baz' => sub { ... };
 
-        my $self = bless {};
-
-        $self->foo(...); # OK
-        main->bar(...);  # OK
-        Foo->new->baz(); # OK
+        $self->foo(); # OK
+        $self->bar(); # OK
+        $self->baz(); # OK
 
         no Method::Lexical qw(foo);
 
         eval { $self->foo() };
         warn $@; # Can't locate object method "foo" via package "main"
 
-        $self->bar(...); # OK
-        Foo->new->baz(); # OK
+        $self->bar(); # OK
+        $self->baz(); # OK
 
         no Method::Lexical;
 
-        eval { $self->bar(...) };
+        eval { $self->bar() };
         warn $@; # Can't locate object method "bar" via package "main"
 
-        eval { Foo->new->baz() };
-        warn $@; # Can't locate object method "baz" via package "Foo"
+        eval { $self->baz() };
+        warn $@; # Can't locate object method "baz" via package "main"
     }
 
     $self->foo(); # OK
@@ -394,8 +385,8 @@ C<Method::Lexical> inherit an C<unimport> method that only removes the methods t
 
         use Method::Lexical quux => \&quux;
 
-        $self->foo(...); # OK
-        main->quux(...); # OK
+        $self->foo();  # OK
+        $self->quux(); # OK
 
         no MyPragma qw(foo); # unimports foo
         no MyPragma;         # unimports bar and baz
@@ -423,8 +414,8 @@ This works:
         $self->private(); # OK
     }
 
-Calls to fully-qualified method names are interpreted as normal (public) method calls. So the following are not
-interpreted as lexical method calls:
+Calls to fully-qualified method names are compiled and interpreted as as normal (i.e. public) method calls.
+So the following are not called as lexical methods:
 
     my $method = 'Foo::Bar::baz';
 
@@ -436,7 +427,7 @@ Likewise, method calls on glob or filehandle invocants are interpreted as ordina
 
 =head1 VERSION
 
-0.01
+0.02
 
 =head1 SEE ALSO
 
@@ -444,7 +435,7 @@ Likewise, method calls on glob or filehandle invocants are interpreted as ordina
 
 =item * L<mysubs|mysubs>
 
-=item * L<Subs::Lexical|Subs::Lexical>
+=item * L<Sub::Lexical|Sub::Lexical>
 
 =item * L<Class::Fields|Class::Fields>
 

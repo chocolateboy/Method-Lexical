@@ -20,13 +20,13 @@
  * possibly breaking things: http://www.xray.mpe.mpg.de/mailing-lists/perl5-porters/2008-04/msg00171.html
  *
  * Rather than globally defining PERL_CORE, which pokes its fingers into various headers, exposing
- * internals we'd rather not see, just define it before including XSUB.h, which includes
+ * internals we'd rather not see, just define it for XSUB.h, which includes
  * perlapi.h, which imposes the speed limit.
  */
 
 #define PERL_CORE
 #include "XSUB.h"
-#undef PERL_CORE /* not needed, but may as well */
+#undef PERL_CORE
 
 #define NEED_sv_2pv_flags
 #include "ppport.h"
@@ -207,7 +207,7 @@ STATIC OP * method_lexical_check_method(pTHX_ OP * o, void * user_data) {
     /*
      * Perl_ck_method can upgrade an OP_METHOD to an OP_METHOD_NAMED (perly.y
      * channels all method calls through newUNOP(OP_METHOD)),
-     * so we need to assign the right method ppaddr, or bail if the op's no
+     * so we need to assign the right method ppaddr, or bail if the OP's no
      * longer a method (i.e. another module has changed it)
      */
 

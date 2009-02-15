@@ -29,7 +29,7 @@
 
 /* chocolateboy: emulate the default (i.e. only) MRO on older perls (and still the default on 5.10) */
 #ifndef mro_get_linear_isa
-#define mro_get_linear_isa(stash) mro_get_linear_isa_dfs(stash, 0)
+#define mro_get_linear_isa(stash) mro_get_linear_isa_dfs(aTHX_ stash, 0)
 
 #include "assert.h"
 
@@ -46,10 +46,10 @@ mro_get_linear_isa_dfs(pTHX_ HV *stash, I32 level) {
     stashname = HvNAME(stash);
 
     if (!stashname)
-        Perl_croak(aTHX_ "Can't linearize anonymous symbol table");
+        croak("Can't linearize anonymous symbol table");
 
     if (level > 100)
-        Perl_croak(aTHX_ "Recursive inheritance detected in package '%s'", stashname);
+        croak("Recursive inheritance detected in package '%s'", stashname);
 
     /* not in cache, make a new one */
     retval = (AV*)sv_2mortal((SV *)newAV());
@@ -89,7 +89,7 @@ mro_get_linear_isa_dfs(pTHX_ HV *stash, I32 level) {
                    The recursive call could throw an exception, which
                    has memory management implications here, hence the use of
                    the mortal.  */
-                const AV *const subrv = mro_get_linear_isa_dfs(basestash, level + 1);
+                const AV *const subrv = mro_get_linear_isa_dfs(aTHX_ basestash, level + 1);
                 subrv_p = AvARRAY(subrv);
                 subrv_items = AvFILLp(subrv) + 1;
             }

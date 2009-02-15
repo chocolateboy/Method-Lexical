@@ -26,7 +26,7 @@ my $XS_DEPENDENCIES = eval {
     \%hash
 } || {};
 
-warn "WARNING: $@" if ($@);
+warn $@ if ($@);
 
 WriteMakefile(
     NAME          => 'Method::Lexical',
