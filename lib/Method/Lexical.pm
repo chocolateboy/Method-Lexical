@@ -12,7 +12,7 @@ use Carp qw(croak carp);
 use Devel::Pragma ':all';
 use XSLoader;
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 our @CARP_NOT = qw(B::Hooks::EndOfScope);
 
 XSLoader::load(__PACKAGE__, $VERSION);
@@ -116,6 +116,7 @@ sub import {
             $installed = $hints->{$METHOD_LEXICAL} = {}; # create
             # disable Method::Lexical altogether when we leave the top-level scope in which it was enabled
             on_scope_end \&xs_leave if ($top_level);
+            # on_require \&xs_leave, \&xs_enter;
             xs_enter();
         }
     } else {
@@ -427,7 +428,7 @@ Likewise, method calls on glob or filehandle invocants are interpreted as ordina
 
 =head1 VERSION
 
-0.02
+0.03
 
 =head1 SEE ALSO
 

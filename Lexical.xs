@@ -35,7 +35,7 @@
 #include "hook_op_annotation.h"
 #include "mro.h"
 
-#include <string.h> /* for strchr */
+#include <string.h> /* for strchr and strlen */
 #define NDEBUG
 #include <assert.h>
 
@@ -278,11 +278,10 @@ STATIC OP * method_lexical_check_method_static(pTHX_ OP * o) {
         }
 
         if (count) {
-            OPAnnotation * annotation;
             MethodLexicalData *data;
 
             data = method_lexical_data_new(aTHX_ installed, FALSE);
-            annotation = op_annotation_new(METHOD_LEXICAL_ANNOTATIONS, o, (void *)data, method_lexical_data_free);
+            (void)op_annotation_new(METHOD_LEXICAL_ANNOTATIONS, o, (void *)data, method_lexical_data_free);
 
             o->op_ppaddr = method_lexical_method_static;
         } /* else no lexical method of this name */

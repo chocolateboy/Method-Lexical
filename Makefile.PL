@@ -20,7 +20,8 @@ if ($Config{gccversion}) {
 my $XS_DEPENDENCIES = eval {
     require ExtUtils::Depends;
     my %hash = ExtUtils::Depends->new(
-        'Method::Lexical' => 'B::Hooks::OP::Check', 'B::Hooks::OP::PPAddr', 'B::Hooks::OP::Annotation'
+        'Method::Lexical' => 'B::Hooks::OP::Check',
+                             'B::Hooks::OP::Annotation'
     )->get_makefile_vars();
 
     \%hash
@@ -34,7 +35,7 @@ WriteMakefile(
     PREREQ_PM => {
         'B::Hooks::EndOfScope'     => '0.05',
         'B::Hooks::OP::Check'      => '0.14',    # The last version that works with 5.8.0
-        'B::Hooks::OP::Annotation' => '0.30',
+        'B::Hooks::OP::Annotation' => '0.31',
         'Devel::Pragma'            => '0.40',
         'ExtUtils::Depends'        => '0.301',
     },
