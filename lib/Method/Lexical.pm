@@ -9,10 +9,10 @@ use B::Hooks::EndOfScope;
 use B::Hooks::OP::Check;
 use B::Hooks::OP::Annotation;
 use Carp qw(croak carp);
-use Devel::Pragma ':all';
+use Devel::Pragma qw(ccstash fqname my_hints new_scope on_require);
 use XSLoader;
 
-our $VERSION = '0.03';
+our $VERSION = '0.04';
 our @CARP_NOT = qw(B::Hooks::EndOfScope);
 
 XSLoader::load(__PACKAGE__, $VERSION);
@@ -95,7 +95,6 @@ sub import {
         my $temp = $hints->{$METHOD_LEXICAL};
 
         if ($temp) {
-
             # the hash is cloned to ensure that inner/nested scopes don't clobber/contaminate
             # outer/previous scopes with their new bindings. Likewise, unimport installs
             # a new hash to ensure that previous bindings aren't clobbered e.g.
@@ -114,9 +113,13 @@ sub import {
         } else {
             $top_level = 1;
             $installed = $hints->{$METHOD_LEXICAL} = {}; # create
+
             # disable Method::Lexical altogether when we leave the top-level scope in which it was enabled
-            on_scope_end \&xs_leave if ($top_level);
-            # on_require \&xs_leave, \&xs_enter;
+            on_scope_end \&xs_leave;
+
+            # disable/re-enable check hooks before/after require
+            on_require \&xs_leave, \&xs_enter;
+
             xs_enter();
         }
     } else {
@@ -231,7 +234,7 @@ Method::Lexical - private methods and lexical method overrides
     warn $@; # Can't locate object method "dump" via package "main"
 
     {
-        use feature qw(:5.10);
+        use feature qw(say);
 
         use Method::Lexical
              private          => sub { 'private' },
@@ -328,11 +331,11 @@ Client code can then import lexical methods from the module:
 
     #!/usr/bin/env perl
 
-    use feature qw(:5.10);
-
     use FileHandle;
 
     {
+        use feature qw(say);
+
         use Universal::Dump;
 
         say FileHandle->new->dump; # OK
@@ -428,7 +431,7 @@ Likewise, method calls on glob or filehandle invocants are interpreted as ordina
 
 =head1 VERSION
 
-0.03
+0.04
 
 =head1 SEE ALSO
 

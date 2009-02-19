@@ -89,7 +89,7 @@ package Method::Lexical::Test;
     }
 
 # Perl_ck_method treats fully-qualified method name calls as OP_METHOD
-=for comment
+=begin comment
     my $self = __PACKAGE__->new();
 
     ::is(

@@ -1,9 +1,10 @@
-use 5.8.1;
+use 5.008001;
 
 use strict;
 use warnings;
 
 use ExtUtils::MakeMaker;
+use ExtUtils::Depends;
 use Config;
 
 my $optimize;
@@ -17,27 +18,20 @@ if ($Config{gccversion}) {
     $optimize = $Config{optimize};
 }
 
-my $XS_DEPENDENCIES = eval {
-    require ExtUtils::Depends;
-    my %hash = ExtUtils::Depends->new(
-        'Method::Lexical' => 'B::Hooks::OP::Check',
-                             'B::Hooks::OP::Annotation'
-    )->get_makefile_vars();
-
-    \%hash
-} || {};
-
-warn $@ if ($@);
+our %XS_DEPENDENCIES = ExtUtils::Depends->new(
+    'Method::Lexical',
+    'B::Hooks::OP::Annotation',
+    'B::Hooks::OP::Check'
+)->get_makefile_vars();
 
 WriteMakefile(
     NAME          => 'Method::Lexical',
     VERSION_FROM  => 'lib/Method/Lexical.pm',
     PREREQ_PM => {
-        'B::Hooks::EndOfScope'     => '0.05',
-        'B::Hooks::OP::Check'      => '0.14',    # The last version that works with 5.8.0
+        'B::Hooks::EndOfScope'     => '0.06',
         'B::Hooks::OP::Annotation' => '0.31',
-        'Devel::Pragma'            => '0.40',
-        'ExtUtils::Depends'        => '0.301',
+        'B::Hooks::OP::Check'      => '0.15',
+        'Devel::Pragma'            => '0.51',
     },
     ABSTRACT_FROM => 'lib/Method/Lexical.pm',
     AUTHOR        => 'chocolateboy <chocolate@cpan.org>',
@@ -46,5 +40,5 @@ WriteMakefile(
     INC           => '-I.',
     OPTIMIZE      => $optimize,
     ($ExtUtils::MakeMaker::VERSION >= 6.31 ? (LICENSE => 'perl') : ()),
-    %$XS_DEPENDENCIES,
+    %XS_DEPENDENCIES,
 );

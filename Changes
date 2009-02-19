@@ -1,5 +1,8 @@
 Revision history for Perl extension Method::Lexical.
 
+0.04  Thu Feb 19 16:54:58 2009
+    - fix META.yml
+
 0.03  Mon Feb 16 01:14:21 2009
     - Makefile.PL fix
 

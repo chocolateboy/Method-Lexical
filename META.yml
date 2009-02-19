@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:               Method-Lexical
-version:            0.03
+version:            0.04
 abstract:           private methods and lexical method overrides
 author:
     - chocolateboy <chocolate@cpan.org>
@@ -9,11 +9,10 @@ distribution_type:  module
 configure_requires:
     ExtUtils::MakeMaker:  0
 requires:
-    B::Hooks::EndOfScope:  0.05
+    B::Hooks::EndOfScope:  0.06
     B::Hooks::OP::Annotation:  0.31
-    B::Hooks::OP::Check:  0.14
-    Devel::Pragma:        0.40
-    ExtUtils::Depends:    0.301
+    B::Hooks::OP::Check:  0.15
+    Devel::Pragma:        0.51
 no_index:
     directory:
         - t
