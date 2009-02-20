@@ -10,4 +10,6 @@ README
 t/01_use.t
 t/basic.t
 t/depth.t
+t/fail.t
+t/fqname.t
 t/pod.t

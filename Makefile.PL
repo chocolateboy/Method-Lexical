@@ -31,7 +31,7 @@ WriteMakefile(
         'B::Hooks::EndOfScope'     => '0.06',
         'B::Hooks::OP::Annotation' => '0.31',
         'B::Hooks::OP::Check'      => '0.15',
-        'Devel::Pragma'            => '0.51',
+        'Devel::Pragma'            => '0.52',
     },
     ABSTRACT_FROM => 'lib/Method/Lexical.pm',
     AUTHOR        => 'chocolateboy <chocolate@cpan.org>',
@@ -39,6 +39,10 @@ WriteMakefile(
     DEFINE        => '',
     INC           => '-I.',
     OPTIMIZE      => $optimize,
+    ($ExtUtils::MakeMaker::VERSION >= 6.46 ?
+        (META_MERGE => { configure_requires => { 'ExtUtils::Depends' => '0.301' } }) :
+        ()
+    ),
     ($ExtUtils::MakeMaker::VERSION >= 6.31 ? (LICENSE => 'perl') : ()),
     %XS_DEPENDENCIES,
 );

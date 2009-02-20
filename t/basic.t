@@ -88,23 +88,6 @@ package Method::Lexical::Test;
         $self->private();
     }
 
-# Perl_ck_method treats fully-qualified method name calls as OP_METHOD
-=begin comment
-    my $self = __PACKAGE__->new();
-
-    ::is(
-        $self->Method::Lexical::Test::private(),
-        'private!',
-        'instance: fully-qualified method name'
-    );
-
-    ::is(
-        __PACKAGE__->Method::Lexical::Test::private(),
-        'private!',
-        'class: fully-qualified method name'
-    );
-=cut
-
     no Method::Lexical;
 
     eval { Method::Lexical::Test->new->private() };

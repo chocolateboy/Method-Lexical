@@ -12,7 +12,7 @@ use Carp qw(croak carp);
 use Devel::Pragma qw(ccstash fqname my_hints new_scope on_require);
 use XSLoader;
 
-our $VERSION = '0.04';
+our $VERSION = '0.10';
 our @CARP_NOT = qw(B::Hooks::EndOfScope);
 
 XSLoader::load(__PACKAGE__, $VERSION);
@@ -418,20 +418,15 @@ This works:
         $self->private(); # OK
     }
 
-Calls to fully-qualified method names are compiled and interpreted as as normal (i.e. public) method calls.
-So the following are not called as lexical methods:
+Method calls on glob or filehandle invocants are interpreted as ordinary method calls.
 
-    my $method = 'Foo::Bar::baz';
+Lexical AUTOLOAD methods are not currently supported.
 
-    $self->Foo::Bar::baz();
-    $self->SUPER::foo();
-    $self->$method();
-
-Likewise, method calls on glob or filehandle invocants are interpreted as ordinary method calls.
+The method resolution order for lexical method calls on pre-5.10 perls is currently fixed at depth-first search.
 
 =head1 VERSION
 
-0.04
+0.10
 
 =head1 SEE ALSO
 

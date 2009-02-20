@@ -1,5 +1,12 @@
 Revision history for Perl extension Method::Lexical.
 
+0.10  Fri Feb 20 02:35:11 2009
+    - support fully-qualified method names and SUPER
+        - added fqname.t
+    - fix segfault when calling methods on unblessed references
+        - added fail.t
+    - refix META.yml
+
 0.04  Thu Feb 19 16:54:58 2009
     - fix META.yml
 
