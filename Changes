@@ -1,5 +1,8 @@
 Revision history for Perl extension Method::Lexical.
 
+0.11  Fri Feb 20 13:27:12 2009
+    - fix OOM error (thanks Andreas Koenig)
+
 0.10  Fri Feb 20 02:35:11 2009
     - support fully-qualified method names and SUPER
         - added fqname.t

@@ -1,4 +1,4 @@
-Method-Lexical version 0.10
+Method-Lexical version 0.11
 ===========================
 
 Method::Lexical is a lexically-scoped pragma that implements lexical methods i.e. methods

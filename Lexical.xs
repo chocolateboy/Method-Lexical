@@ -489,11 +489,10 @@ STATIC HV * method_lexical_get_super_stash(pTHX_ const char * const class_name, 
 STATIC HV * method_lexical_get_fqname_stash(pTHX_ SV **method_sv_ptr, char **class_name_ptr) {
     HV *stash;
     const char *fqname;
-    STRLEN offset, len;
+    STRLEN len, i, offset = 0; /* XXX bugfix: make sure offset is initialized to 0 */
     SV * invocant_sv, *normalized_sv = NULL, *fqmethod_sv = *method_sv_ptr;
-    UV i;
 
-    fqname = SvPV(*method_sv_ptr, len);
+    fqname = SvPV(fqmethod_sv, len);
 
     /* 
      * kill two birds with one scan:
@@ -526,17 +525,16 @@ STATIC HV * method_lexical_get_fqname_stash(pTHX_ SV **method_sv_ptr, char **cla
         }
     }
 
-    /*
-     * offset might be out of bounds if the name is mangled, which shouldn't happen
-     * for a static name, but e.g.
-     *
-     *     my $name = 'foo:';
-     *     $self->$name();
-     *
-     * so check that the offset (4 in this case) is sane
-     */
-
     if (offset) {
+        /*
+         * offset might be out of bounds if the name is mangled, which shouldn't happen
+         * for a static name, but e.g.
+         *
+         *     my $name = 'foo:';
+         *     $self->$name();
+         *
+         * so check that the offset (4 in this case) is sane
+         */
         if (offset == len) {
             goto done;
         } else {

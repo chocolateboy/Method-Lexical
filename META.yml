@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:               Method-Lexical
-version:            0.10
+version:            0.11
 abstract:           private methods and lexical method overrides
 author:
     - chocolateboy <chocolate@cpan.org>
