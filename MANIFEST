@@ -8,7 +8,9 @@ mro.h
 ppport.h
 README
 t/01_use.t
+t/autoload.t
 t/basic.t
+t/cache.t
 t/depth.t
 t/fail.t
 t/fqname.t

@@ -12,7 +12,7 @@ use Carp qw(croak carp);
 use Devel::Pragma qw(ccstash fqname my_hints new_scope on_require);
 use XSLoader;
 
-our $VERSION = '0.11';
+our $VERSION = '0.20';
 our @CARP_NOT = qw(B::Hooks::EndOfScope);
 
 XSLoader::load(__PACKAGE__, $VERSION);
@@ -420,13 +420,11 @@ This works:
 
 Method calls on glob or filehandle invocants are interpreted as ordinary method calls.
 
-Lexical AUTOLOAD methods are not currently supported.
-
 The method resolution order for lexical method calls on pre-5.10 perls is currently fixed at depth-first search.
 
 =head1 VERSION
 
-0.11
+0.20
 
 =head1 SEE ALSO
 

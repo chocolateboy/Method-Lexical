@@ -41,14 +41,14 @@
 
 #define METHOD_LEXICAL_INSTALLED "Method::Lexical"
 
-#define METHOD_LEXICAL_ENABLED(table, svp)                                                        \
-    ((PL_hints & 0x20000) &&                                                                      \
-    (table = GvHV(PL_hintgv)) &&                                                                  \
-    (svp = hv_fetch(table, METHOD_LEXICAL_INSTALLED, strlen(METHOD_LEXICAL_INSTALLED), FALSE)) && \
-    *svp &&                                                                                       \
-    SvOK(*svp) &&                                                                                 \
-    SvROK(*svp) &&                                                                                \
-    SvRV(*svp) &&                                                                                 \
+#define METHOD_LEXICAL_ENABLED(table, svp)                                                            \
+    ((PL_hints & 0x20000) &&                                                                          \
+    (table = GvHV(PL_hintgv)) &&                                                                      \
+    (svp = hv_fetch(table, METHOD_LEXICAL_INSTALLED, sizeof(METHOD_LEXICAL_INSTALLED) - 1, FALSE)) && \
+    *svp &&                                                                                           \
+    SvOK(*svp) &&                                                                                     \
+    SvROK(*svp) &&                                                                                    \
+    SvRV(*svp) &&                                                                                     \
     SvTYPE(SvRV(*svp)) == SVt_PVHV)
 
 typedef struct MethodLexicalDataList {
@@ -63,13 +63,14 @@ typedef struct MethodLexicalData {
     HV *hv;
     MethodLexicalDataList *list;
     U32 dynamic;
+    U32 autoload;
 } MethodLexicalData;
 
-STATIC CV * method_lexical_hash_get(pTHX_ HV * const hv, SV * const key);
+STATIC CV * method_lexical_hash_get(pTHX_ const HV * const hv, const SV * const key);
 STATIC HV * method_lexical_get_fqname_stash(pTHX_ SV **method_sv_ptr, char **class_name_ptr);
 STATIC HV * method_lexical_get_invocant_stash(pTHX_ SV * const invocant, char **class_name_ptr);
 STATIC HV * method_lexical_get_super_stash(pTHX_ const char * const class_name, char **class_name_ptr);
-STATIC MethodLexicalData * method_lexical_data_new(pTHX_ HV * const hv, const U32 dynamic);
+STATIC MethodLexicalData * method_lexical_data_new(pTHX_ HV * const hv, const U32 dynamic, const U32 autoload);
 STATIC OP * method_lexical_check_method_dynamic(pTHX_ OP * o);
 STATIC OP * method_lexical_check_method(pTHX_ OP * o, void *user_data);
 STATIC OP * method_lexical_check_method_static(pTHX_ OP * o);
@@ -120,12 +121,29 @@ STATIC void method_lexical_cache_remove(
     MethodLexicalDataList *head
 );
 
+STATIC void method_lexical_set_autoload(
+    pTHX_
+    const HV * const stash,
+    const char * const class_name,
+    const SV *method,
+    CV * cv
+);
+
+STATIC CV *method_lexical_lookup_method(
+    pTHX_
+    const HV * const stash,
+    const HV * const installed,
+    const char * const class_name,
+    const char * const name,
+    U32 *generation_ptr
+);
+
 STATIC hook_op_check_id method_lexical_check_method_id = 0;
 STATIC OPAnnotationGroup METHOD_LEXICAL_ANNOTATIONS;
 STATIC U32 METHOD_LEXICAL_COMPILING = 0;
 STATIC U32 METHOD_LEXICAL_DEBUG = 0;
 
-STATIC MethodLexicalData * method_lexical_data_new(pTHX_ HV * const hv, const U32 dynamic) {
+STATIC MethodLexicalData * method_lexical_data_new(pTHX_ HV * const hv, const U32 dynamic, const U32 autoload) {
     MethodLexicalData *data;
 
     Newx(data, 1, MethodLexicalData);
@@ -136,6 +154,7 @@ STATIC MethodLexicalData * method_lexical_data_new(pTHX_ HV * const hv, const U3
 
     data->hv = (HV * const)SvREFCNT_inc(hv); /* this is needed to prevent the hash being garbage-collected */
     data->dynamic = dynamic;
+    data->autoload = autoload;
     data->list = NULL;
 
     return data;
@@ -231,7 +250,7 @@ STATIC OP * method_lexical_check_method_dynamic(pTHX_ OP * o) {
         MethodLexicalData *data;
         HV *installed = (HV *)SvRV(*svp);
 
-        data = method_lexical_data_new(aTHX_ installed, TRUE);
+        data = method_lexical_data_new(aTHX_ installed, TRUE, TRUE);
         (void)op_annotation_new(METHOD_LEXICAL_ANNOTATIONS, o, (void *)data, method_lexical_data_free);
 
         o->op_ppaddr = method_lexical_method_dynamic;
@@ -252,8 +271,7 @@ STATIC OP * method_lexical_check_method_static(pTHX_ OP * o) {
         UV count = 0;
         SV *method = cSVOPo->op_sv;
         const char *fqname, *name = SvPV_const(method, namelen);
-
-        assert(!(strchr(name, ':') && strchr(name, '\'')));
+        U32 autoload = FALSE;
 
         hv_iterinit(installed);
 
@@ -272,7 +290,8 @@ STATIC OP * method_lexical_check_method_static(pTHX_ OP * o) {
             rcolon = strrchr(fqname, ':');
 
             /* WARN("comparing OP method (%*s) => fqname method (%s)", namelen, name, rcolon + 1); */
-            if (strnEQ(name, rcolon + 1, namelen)) {
+            /* if (strnEQ(name, rcolon + 1, namelen)) */
+            if ((strnEQ(rcolon + 1, "AUTOLOAD", 8) && (autoload = TRUE)) || strnEQ(name, rcolon + 1, namelen)) {
                 ++count;
             }
         }
@@ -280,7 +299,7 @@ STATIC OP * method_lexical_check_method_static(pTHX_ OP * o) {
         if (count) {
             MethodLexicalData *data;
 
-            data = method_lexical_data_new(aTHX_ installed, FALSE);
+            data = method_lexical_data_new(aTHX_ installed, FALSE, autoload);
             (void)op_annotation_new(METHOD_LEXICAL_ANNOTATIONS, o, (void *)data, method_lexical_data_free);
 
             o->op_ppaddr = method_lexical_method_static;
@@ -357,35 +376,77 @@ STATIC SV * method_lexical_method_common(
     const SV * const method
 ) {
     const char * name;
-    SV *key;
     HV * const installed = data->hv;
-    CV *cv = NULL;
+    CV *cv;
+    U32 generation;
+    STRLEN namelen;
 
-    name = SvPVX(method);
+    name = SvPV((SV *)method, namelen); /* temporarily cast of constness */
+    cv = method_lexical_lookup_method(aTHX_ stash, installed, class_name, name, &generation);
+
+    if (!cv && data->autoload) {
+        const GV * gv;
+        
+        generation = mro_get_pkg_gen(stash);
+
+        if (METHOD_LEXICAL_DEBUG) {
+            warn("Method::Lexical: looking up: %s::%s (public)", class_name, name);
+        }
+
+        gv = gv_fetchmethod((HV *)stash, name); /* temporarily cast of constness */
+
+        if (gv) {
+            if (METHOD_LEXICAL_DEBUG) {
+                warn("Method::Lexical: found: %s::%s (public)", class_name, name);
+            }
+            cv = isGV(gv) ? GvCV(gv) : (CV *)gv;
+        } else {
+            cv = method_lexical_lookup_method(aTHX_ stash, installed, class_name, "AUTOLOAD", NULL);
+
+            if (cv) {
+                method_lexical_set_autoload(aTHX_ stash, class_name, method, cv);
+            }
+        }
+    }
+
+    method_lexical_cache_set(aTHX_ data, stash, generation, method, cv);
+
+    return (SV *)cv;
+}
+
+STATIC CV * method_lexical_lookup_method(
+    pTHX_
+    const HV * const stash,
+    const HV * const installed,
+    const char * const class_name,
+    const char * const name,
+    U32 *generation_ptr
+) {
+    const SV *key;
+    CV *cv;
+
     key = sv_2mortal(newSVpvf("%s::%s", class_name, name));
     cv = method_lexical_hash_get(aTHX_ installed, key);
 
     if (cv) {
-        /* generation 0 means this private method is in the installed hash and so can never be invalidated */
-        method_lexical_cache_set(aTHX_ data, stash, 0, method, cv);
+        if (generation_ptr) {
+            *generation_ptr = 0;
+        }
     } else { /* try superclasses */
-        AV *isa;
-        U32 items, generation;
-        SV **svp;
+        U32 items;
+        SV ** svp;
+        const AV *isa;
 
-        generation = mro_get_pkg_gen(stash);
+        if (generation_ptr) {
+            *generation_ptr = mro_get_pkg_gen(stash);
+        }
+
         isa = mro_get_linear_isa((HV *)stash); /* temporarily cast off constness */
-
-        assert(isa);
-        assert(SvTYPE(isa) == SVt_PVAV);
-
         items = AvFILLp(isa) + 1; /* add 1 (even though we're skipping self) to include the appended "UNIVERSAL" */
         svp = AvARRAY(isa) + 1;   /* skip self */
 
         while (items--) { /* always entered, if only for "UNIVERSAL" */
             SV *class_name_sv;
-            char *class_name_pv;
-            HV *isa_stash;
 
             if (items == 0) {
                 class_name_sv = sv_2mortal(newSVpvn("UNIVERSAL", 9));
@@ -394,25 +455,95 @@ STATIC SV * method_lexical_method_common(
             }
 
             key = sv_2mortal(newSVpvf("%s::%s", SvPVX(class_name_sv), name));
-            assert(key);
-
-            isa_stash = method_lexical_get_invocant_stash(aTHX_ class_name_sv, &class_name_pv);
-
             cv = method_lexical_hash_get(aTHX_ installed, key);
 
             if (cv) {
-                method_lexical_cache_set(aTHX_ data, stash, generation, method, cv);
                 break;
             }
         }
-
-        if (!cv) {
-            /* cache a "not found" marker: NULL */
-            method_lexical_cache_set(aTHX_ data, stash, generation, method, NULL);
-        }
     }
 
-    return (SV *)cv;
+    return cv;
+}
+
+STATIC void method_lexical_set_autoload(
+    pTHX_
+    const HV * const stash,
+    const char * const class_name,
+    const SV *method,
+    CV * cv
+) {
+
+#ifndef CvISXSUB
+#  define CvISXSUB(cv) (CvXSUB(cv) ? TRUE : FALSE)
+#endif
+
+    assert(CvROOT(cv) || CvISXSUB(cv));
+
+    /* <copypasta file="gv.c" function="gv_autoload4"> */
+
+#ifndef USE_5005THREADS
+    if (CvISXSUB(cv)) {
+        /* rather than lookup/init $AUTOLOAD here
+         * only to have the XSUB do another lookup for $AUTOLOAD
+         * and split that value on the last '::',
+         * pass along the same data via some unused fields in the CV
+         */
+
+        CvSTASH(cv) = (HV *)stash; /* temporarily cast off constness */
+        SvPV_set(cv, (char *)SvPVX(method)); /* cast to lose constness warning */
+        SvCUR_set(cv, SvCUR(method));
+        return;
+    } else
+#endif
+    
+    {
+        HV* varstash;
+        GV* vargv;
+        SV* varsv;
+
+        /*
+         * Given &FOO::AUTOLOAD, set $FOO::AUTOLOAD to desired function name.
+         * The subroutine's original name may not be "AUTOLOAD", so we don't
+         * use that, but for lack of anything better we will use the sub's
+         * original package to look up $AUTOLOAD.
+         */
+        varstash = GvSTASH(CvGV(cv));
+        vargv = *(GV**)hv_fetch(varstash, "AUTOLOAD", 8, TRUE);
+        ENTER;
+
+#ifdef USE_5005THREADS /* shouldn't be defined after 5.8.x */
+        sv_lock((SV *)varstash);
+#endif
+
+        if (!isGV(vargv)) {
+            gv_init(vargv, varstash, "AUTOLOAD", 8, FALSE);
+#ifdef PERL_DONT_CREATE_GVSV
+            GvSV(vargv) = newSV(0);
+#endif
+        }
+        LEAVE;
+
+#ifndef GvSVn
+#  ifdef PERL_DONT_CREATE_GVSV
+#    define GvSVn(gv) (*(GvGP(gv)->gp_sv ? &(GvGP(gv)->gp_sv) : &(GvGP(gv_SVadd(gv))->gp_sv)))
+#  else
+#    define GvSVn(gv) GvSV(gv)
+#  endif
+#endif
+
+        varsv = GvSVn(vargv);
+
+#ifdef USE_5005THREADS /* shouldn't be defined after 5.8.x */
+        sv_lock(varsv);
+#endif
+
+        sv_setpv(varsv, class_name);
+        sv_catpvs(varsv, "::");
+        sv_catpv(varsv, SvPVX(method));
+    }
+
+    /* </copypasta> */
 }
 
 STATIC HV *method_lexical_get_invocant_stash(pTHX_ SV * const invocant, char **class_name_ptr) {
@@ -565,28 +696,7 @@ STATIC HV * method_lexical_get_fqname_stash(pTHX_ SV **method_sv_ptr, char **cla
              */
 
             if (strnEQ(class_name, "SUPER", 5)) {
-                /*
-                 * S_gv_get_super_pkg in perl 5.10's gv.c seems to think that (under 5.10 if USE_ITHREADS
-                 * is not defined)
-                 *
-                 *     a) HvNAME_HEK(CopSTASH(PL_curcop)) should be used instead of CopSTASHPV(PL_curcop)
-                 *        to figure out the name of the package in which the method invocation was compiled
-                 *     b) CopSTASH(PL_curcop) may be NULL
-                 *
-                 * Either way, CopSTASHPV(cop) is defined as:
-                 *
-                 *     (CopSTASH(cop) ? HvNAME_get(CopSTASH(cop)) : NULL)
-                 *
-                 * and so may be NULL. 
-                 *
-                 * We have two choices. Either we can assert(CopSTASH(cop)) to figure out how, where
-                 * and why a COP might *not* have a stash. Or we can give up and yield to pp_method and
-                 * let perl figure out the whys and wherefores of its hackery.
-                 *
-                 * For now, do the former and hope an assertion fails in testing or in the wild.
-                 */
-                assert(PL_curcop);
-                assert(CopSTASH(PL_curcop));
+                assert(CopSTASHPV(PL_curcop)); /* FIXME - CopSTASHPV can be NULL */
                 return method_lexical_get_super_stash(aTHX_ CopSTASHPV(PL_curcop), class_name_ptr);
             } else if ((class_name_len > 7) && strnEQ(class_name + (class_name_len - 7), "::SUPER", 7)) {
                 class_name[(class_name_len - 7)] = '\0';
@@ -704,13 +814,20 @@ STATIC SV *method_lexical_cache_get(
     return (SV *)cv;
 }
 
-STATIC CV *method_lexical_hash_get(pTHX_ HV * const hv, SV * const key) {
+STATIC CV *method_lexical_hash_get(pTHX_ const HV * const hv, const SV * const key) {
     HE *he;
 
-    he = hv_fetch_ent(hv, key, FALSE, 0); /* don't create an undef value if it doesn't exist */
+    if (METHOD_LEXICAL_DEBUG) {
+        warn("Method::Lexical: looking up: %s (private)", SvPVX(key));
+    }
+
+    he = hv_fetch_ent((HV *)hv, (SV *)key, FALSE, 0); /* don't create an undef value if it doesn't exist */
 
     if (he) {
         const SV * const rv = HeVAL(he);
+        if (METHOD_LEXICAL_DEBUG) {
+            warn("Method::Lexical: found: %s (private)", SvPVX(key));
+        }
         return (CV *)SvRV(rv);
     }
 
