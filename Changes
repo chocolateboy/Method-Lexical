@@ -1,5 +1,11 @@
 Revision history for Perl extension Method::Lexical.
 
+0.21  Thu Apr 8 03:18:04 2010
+    - compatibility fix for perl 5.12
+    - minor XS refactoring
+    - doc tweak
+    - update ppport.h
+
 0.20  Sun Feb 22 02:21:13 2009
     - support AUTOLOAD methods
         - added autoload.t

@@ -43,7 +43,7 @@
 
 #define METHOD_LEXICAL_ENABLED(table, svp)                                                            \
     ((PL_hints & 0x20000) &&                                                                          \
-    (table = GvHV(PL_hintgv)) &&                                                                      \
+    (table = GvHVn(PL_hintgv)) &&                                                                     \
     (svp = hv_fetch(table, METHOD_LEXICAL_INSTALLED, sizeof(METHOD_LEXICAL_INSTALLED) - 1, FALSE)) && \
     *svp &&                                                                                           \
     SvOK(*svp) &&                                                                                     \
@@ -89,15 +89,15 @@ STATIC MethodLexicalDataList * method_lexical_data_list_new(
     const CV * const cv
 );
 
-STATIC SV *method_lexical_cache_get(
+STATIC SV *method_lexical_cache_fetch(
     pTHX_
     MethodLexicalData *data,
     const HV * const stash,
     const SV * const method,
-    U32 * const retval
+    U32 * const found
 );
 
-STATIC void method_lexical_cache_set(
+STATIC void method_lexical_cache_store(
     pTHX_
     MethodLexicalData * const data,
     const HV * const stash,
@@ -139,7 +139,7 @@ STATIC CV *method_lexical_lookup_method(
 );
 
 STATIC hook_op_check_id method_lexical_check_method_id = 0;
-STATIC OPAnnotationGroup METHOD_LEXICAL_ANNOTATIONS;
+STATIC OPAnnotationGroup METHOD_LEXICAL_ANNOTATIONS = NULL;
 STATIC U32 METHOD_LEXICAL_COMPILING = 0;
 STATIC U32 METHOD_LEXICAL_DEBUG = 0;
 
@@ -149,7 +149,7 @@ STATIC MethodLexicalData * method_lexical_data_new(pTHX_ HV * const hv, const U3
     Newx(data, 1, MethodLexicalData);
 
     if (!data) {
-        croak("couldn't allocate annotation data");
+        croak("Method::Lexical: couldn't allocate annotation data");
     }
 
     data->hv = (HV * const)SvREFCNT_inc(hv); /* this is needed to prevent the hash being garbage-collected */
@@ -182,7 +182,7 @@ STATIC MethodLexicalDataList * method_lexical_data_list_new(
     Newx(list, 1, MethodLexicalDataList);
 
     if (!list) {
-        croak("couldn't allocate annotation data list");
+        croak("Method::Lexical: couldn't allocate annotation data list");
     }
 
     /* the refcount increments are needed to prevent the values being garbage-collected */
@@ -210,13 +210,15 @@ STATIC void method_lexical_data_list_free(pTHX_ void *vp) {
 }
 
 /*
+ * TODO
+ *
  * the method name may be qualified e.g. 
  *
- *     $self->Foo::Bar::Baz($quux);
+ *     $self->Foo::Bar::baz($quux);
  *
  * in this case, we can turn it into a subroutine call:
  *
- *     Foo::Bar::Baz($self, $quux)
+ *     Foo::Bar::baz($self, $quux)
  *
  * XXX: Perl_ck_method does not turn fully-qualified names into OP_METHOD_NAMED
  * XXX: Perl_ck_method does not normalize fully-qualified names i.e. need to s/'/::/g
@@ -228,7 +230,7 @@ STATIC OP * method_lexical_check_method(pTHX_ OP * o, void * user_data) {
     /*
      * Perl_ck_method can upgrade an OP_METHOD to an OP_METHOD_NAMED (perly.y
      * channels all method calls through newUNOP(OP_METHOD)),
-     * so we need to assign the right method ppaddr, or bail if the OP's no
+     * so we need to assign the right method op_ppaddr, or bail if the OP's no
      * longer a method (i.e. another module has changed it)
      */
 
@@ -250,9 +252,9 @@ STATIC OP * method_lexical_check_method_dynamic(pTHX_ OP * o) {
         MethodLexicalData *data;
         HV *installed = (HV *)SvRV(*svp);
 
+        /* FIXME autoload == TRUE is hardwired for dynamic lookups for now */
         data = method_lexical_data_new(aTHX_ installed, TRUE, TRUE);
-        (void)op_annotation_new(METHOD_LEXICAL_ANNOTATIONS, o, (void *)data, method_lexical_data_free);
-
+        op_annotate(METHOD_LEXICAL_ANNOTATIONS, o, (void *)data, method_lexical_data_free);
         o->op_ppaddr = method_lexical_method_dynamic;
     }
 
@@ -300,14 +302,56 @@ STATIC OP * method_lexical_check_method_static(pTHX_ OP * o) {
             MethodLexicalData *data;
 
             data = method_lexical_data_new(aTHX_ installed, FALSE, autoload);
-            (void)op_annotation_new(METHOD_LEXICAL_ANNOTATIONS, o, (void *)data, method_lexical_data_free);
-
+            op_annotate(METHOD_LEXICAL_ANNOTATIONS, o, (void *)data, method_lexical_data_free);
             o->op_ppaddr = method_lexical_method_static;
         } /* else no lexical method of this name */
     }
         
     return o;
 }
+
+/*
+ * this handles:
+ *
+ *     1) $foo->$bar # $bar is a code ref
+ *     2) $foo->Bar::baz
+ *     3) $foo->SUPER::bar
+ *     4) $foo->$bar # $bar is a method name
+ *
+ * 1) is quick and easy to handle in all cases as the method CV we're supposed to look up
+ * has already been supplied
+ *
+ * 2) is syntactic sugar for:
+ *
+ *     &Bar::baz($foo)
+ *
+ * perl always turns these into (or rather keeps them as) OP_METHOD rather than OP_METHOD_NAMED.
+ * ideally, we should rewrite these as static subroutine calls at compile-time in
+ * method_lexical_check_method, although that's strictly not the responsibility of this module.
+ * it could be done in another module (Method::Peep?), which we could use
+ * (it would need to hook PL_check[OP_METHOD] before us). As it currently stands, though, we can't
+ * determine the stash (Bar) containing the CV (baz) from the invocant ($foo); we need to extract it from
+ * the method name. So we hand the method name off to method_lexical_get_fqname_stash.
+ *
+ * 3) is like 2) but complicated by the peculiar semantics [1] of the SUPER pseudo-package,
+ * which is handled by method_lexical_get_fqname_stash.
+ *
+ * 4) is like a static method call (i.e. we can get the stash from the invocant), but
+ * we don't know that till we've looked at what's in $bar. Again, method_lexical_get_fqname_stash
+ * handles this, and delegates to method_lexical_get_invocant_stash if the method name is "simple",
+ * i.e. not qualified (no double colons or single quotes)
+ *
+ * So: 1) is trivial; 2) could be optimized away at compile-time; 3) is a pain that we have
+ * to deal with (we can't resolve it at compile time, because even though SUPER refers to the
+ * superclass of the package the SUPER call is compiled in (rather than the invocant's superclass),
+ * that package's superclass(es) can still be changed at runtime; 4) requires us to scan the string,
+ * so we may as well handle 2) (for now), and 3) while we're at it.
+ *
+ * On the plus side, none of these idioms are especially common. The bareword unqualified method name
+ * is the common case.
+ *
+ * [1] http://www.xray.mpe.mpg.de/mailing-lists/perl5-porters/2008-01/msg00809.html
+ */ 
 
 STATIC OP * method_lexical_method_dynamic(pTHX) {
     dSP;
@@ -323,20 +367,21 @@ STATIC OP * method_lexical_method_dynamic(pTHX) {
         const HV * const stash = method_lexical_get_fqname_stash(aTHX_ &method_sv, &class_name);
 
         if (stash) {
-            U32 cached;
+            U32 found;
             MethodLexicalData * data;
-            data = (MethodLexicalData *)annotation->data;;
-            cv = method_lexical_cache_get(aTHX_ data, stash, method_sv, &cached);
+            data = (MethodLexicalData *)annotation->data;
+            cv = method_lexical_cache_fetch(aTHX_ data, stash, method_sv, &found);
 
-            if (!cached) {
+            if (!found) {
+                /* look it up the slow way - caches the result (which may be NULL) */
                 cv = method_lexical_method_common(aTHX_ data, stash, class_name, method_sv);
             }
 
             if (cv) {
                 SETs(cv);
                 RETURN;
-            }
-        }
+            } /* else cached, but NULL i.e. not a lexical method - fall through */
+        } /* some weird invocant without a stash: fall through and let perl deal with it */
 
         return CALL_FPTR(annotation->op_ppaddr)(aTHX);
     }
@@ -345,25 +390,26 @@ STATIC OP * method_lexical_method_dynamic(pTHX) {
 STATIC OP *method_lexical_method_static(pTHX) {
     dSP;
     char *class_name;
+    const OPAnnotation * const annotation = op_annotation_get(METHOD_LEXICAL_ANNOTATIONS, PL_op);
     SV * const invocant = *(PL_stack_base + TOPMARK + 1);
     const HV * const stash = method_lexical_get_invocant_stash(aTHX_ invocant, &class_name);
-    const OPAnnotation * const annotation = op_annotation_get(METHOD_LEXICAL_ANNOTATIONS, PL_op);
 
     if (stash) {
-        U32 cached;
+        U32 found;
         const SV * const method = cSVOP_sv;
         MethodLexicalData * const data = (MethodLexicalData *)annotation->data;
-        SV *cv = method_lexical_cache_get(aTHX_ data, stash, method, &cached);
+        SV *cv = method_lexical_cache_fetch(aTHX_ data, stash, method, &found);
 
-        if (!cached) {
+        if (!found) {
+            /* look it up the slow way - caches the result (which may be NULL) */
             cv = method_lexical_method_common(aTHX_ data, stash, class_name, method);
         }
 
         if (cv) {
             XPUSHs(cv);
             RETURN;
-        }
-    }
+        } /* else cached, but NULL i.e. not a lexical method - fall through */
+    } /* some weird invocant without a stash: fall through and let perl deal with it */
 
     return CALL_FPTR(annotation->op_ppaddr)(aTHX);
 }
@@ -381,7 +427,7 @@ STATIC SV * method_lexical_method_common(
     U32 generation;
     STRLEN namelen;
 
-    name = SvPV((SV *)method, namelen); /* temporarily cast of constness */
+    name = SvPV((SV *)method, namelen); /* temporarily cast off constness */
     cv = method_lexical_lookup_method(aTHX_ stash, installed, class_name, name, &generation);
 
     if (!cv && data->autoload) {
@@ -393,7 +439,7 @@ STATIC SV * method_lexical_method_common(
             warn("Method::Lexical: looking up: %s::%s (public)", class_name, name);
         }
 
-        gv = gv_fetchmethod((HV *)stash, name); /* temporarily cast of constness */
+        gv = gv_fetchmethod((HV *)stash, name); /* temporarily cast off constness */
 
         if (gv) {
             if (METHOD_LEXICAL_DEBUG) {
@@ -409,7 +455,7 @@ STATIC SV * method_lexical_method_common(
         }
     }
 
-    method_lexical_cache_set(aTHX_ data, stash, generation, method, cv);
+    method_lexical_cache_store(aTHX_ data, stash, generation, method, cv);
 
     return (SV *)cv;
 }
@@ -429,6 +475,11 @@ STATIC CV * method_lexical_lookup_method(
     cv = method_lexical_hash_get(aTHX_ installed, key);
 
     if (cv) {
+        /*
+         * the installed hash ($^H{'Method::Lexical'}) can't be modified/countermanded
+         * after the fact, so its lookups can be cached without recourse to the same
+         * generational invaldiation as "public" methods
+         */
         if (generation_ptr) {
             *generation_ptr = 0;
         }
@@ -482,8 +533,9 @@ STATIC void method_lexical_set_autoload(
 
     /* <copypasta file="gv.c" function="gv_autoload4"> */
 
-#ifndef USE_5005THREADS
+#ifndef USE_5005THREADS /* chocolateboy: shouldn't be defined after 5.8.x */
     if (CvISXSUB(cv)) {
+
         /* rather than lookup/init $AUTOLOAD here
          * only to have the XSUB do another lookup for $AUTOLOAD
          * and split that value on the last '::',
@@ -512,7 +564,7 @@ STATIC void method_lexical_set_autoload(
         vargv = *(GV**)hv_fetch(varstash, "AUTOLOAD", 8, TRUE);
         ENTER;
 
-#ifdef USE_5005THREADS /* shouldn't be defined after 5.8.x */
+#ifdef USE_5005THREADS /* chocolateboy: shouldn't be defined after 5.8.x */
         sv_lock((SV *)varstash);
 #endif
 
@@ -534,7 +586,7 @@ STATIC void method_lexical_set_autoload(
 
         varsv = GvSVn(vargv);
 
-#ifdef USE_5005THREADS /* shouldn't be defined after 5.8.x */
+#ifdef USE_5005THREADS /* chocolateboy: shouldn't be defined after 5.8.x */
         sv_lock(varsv);
 #endif
 
@@ -557,8 +609,8 @@ STATIC HV *method_lexical_get_invocant_stash(pTHX_ SV * const invocant, char **c
         goto done;
     }
 
-    if (SvROK(invocant)) { /* blessed reference */
-        if (SvOBJECT(SvRV(invocant))) {
+    if (SvROK(invocant)) {
+        if (SvOBJECT(SvRV(invocant))) { /* blessed reference */
 #ifdef HvNAME_HEK
             HEK *hek;
 
@@ -584,8 +636,8 @@ STATIC HV *method_lexical_get_invocant_stash(pTHX_ SV * const invocant, char **c
         if (he) {
             stash = INT2PTR(HV *, SvIV(HeVAL(he)));
         } else if ((stash = gv_stashpvn(class_name, packlen, 0))) {
-            SV *const ref = newSViv(PTR2IV(stash));
-            (void) hv_store(PL_stashcache, class_name, packlen, ref, 0);
+            SV *const sref = newSViv(PTR2IV(stash));
+            (void)hv_store(PL_stashcache, class_name, packlen, sref, 0);
         } /* can't find a stash */
     }
 
@@ -604,7 +656,8 @@ STATIC HV * method_lexical_get_super_stash(pTHX_ const char * const class_name, 
     if (stash) {
         const AV * const isa = mro_get_linear_isa((HV *)stash); /* temporarily cast off constness */
 
-        if (isa && ((AvFILL(isa) + 1) > 1)) { /* at least two items: self and the superclass */
+        /* AvFILL is $#ARRAY i.e. -1 if the array is empty, so > 0 means two or more */
+        if (isa && ((AvFILL(isa)) > 0)) { /* at least two items: self and the superclass */
             SV * const * const svp = AvARRAY(isa) + 1; /* skip self */
 
             if (svp && *svp) {
@@ -620,39 +673,55 @@ STATIC HV * method_lexical_get_super_stash(pTHX_ const char * const class_name, 
 STATIC HV * method_lexical_get_fqname_stash(pTHX_ SV **method_sv_ptr, char **class_name_ptr) {
     HV *stash;
     const char *fqname;
-    STRLEN len, i, offset = 0; /* XXX bugfix: make sure offset is initialized to 0 */
+    STRLEN len, last, i, offset = 0; /* XXX bugfix: make sure offset is initialized to 0 */
     SV * invocant_sv, *normalized_sv = NULL, *fqmethod_sv = *method_sv_ptr;
 
     fqname = SvPV(fqmethod_sv, len);
+    last = len - 1;
 
     /* 
      * kill two birds with one scan:
      *
      * 1) normalized_sv: normalize the fully-qualified name if it contains '\'' i.e. s/'/::/g
-     * 2) offset: find the offset (in fqname) of the start of the unqualified method name
+     * 2) offset: find the offset (in fqname) of the start of the unqualified method name i.e.
+     * the offset of "baz" in "Foo::Bar::baz"
      */
 
-    for (i = 0; i < len; ++i) {
-        if (normalized_sv) {
-            if (fqname[i] == '\'') {
-                sv_catpvs(normalized_sv, "::");
-                offset = i + 1;
-            } else if ((fqname[i] == ':') && ((i + 1) < len) && (fqname[i + 1] == ':')) {
-                sv_catpvs(normalized_sv, "::");
-                offset = i + 2;
-                ++i;
-            } else {
-                sv_catpvn(normalized_sv, fqname + i, 1);
+    for (i = 0; i < last; ++i) {
+        if ((fqname[i] == ':') && (fqname[i + 1] == ':')) {
+            offset = i + 2;
+            ++i; /* in conjunction with the ++i above, this skips both colons */
+        } else if (fqname[i] == '\'') {
+            STRLEN j;
+            normalized_sv = sv_2mortal(newSVpv(fqname, i));
+            sv_catpvs(normalized_sv, "::");
+            offset = i + 1;
+
+            /*
+             * with
+             *
+             *     Foo'b
+             *
+             * we need to append 'b' to normalized_sv, so j must range
+             * up to len - 1 (in this case: 4) rather than i's upper bound (above), which
+             * only ranges up to len - 2 (e.g. 3). In the case above, we're not copying characters,
+             * and so can use a reduced upper bound to remove a bounds check. In this case we
+             * are copying, and thus need to scan to the end and include the bounds check.
+             */ 
+            for (j = offset; j < len; ++j) {
+                if (fqname[j] == '\'') {
+                    sv_catpvs(normalized_sv, "::");
+                    offset = j + 1;
+                } else if ((fqname[j] == ':') && (j < last) && (fqname[j + 1] == ':')) {
+                    sv_catpvs(normalized_sv, "::");
+                    offset = j + 2;
+                    ++j; /* in conjunction with the ++j above, this skips both colons */
+                } else {
+                    sv_catpvn(normalized_sv, fqname + j, 1);
+                }
             }
-        } else {
-            if (fqname[i] == '\'') {
-                normalized_sv = sv_2mortal(newSVpv(fqname, i));
-                sv_catpvs(normalized_sv, "::");
-                offset = i + 1;
-            } else if ((fqname[i] == ':') && ((i + 1) < len) && (fqname[i + 1] == ':')) {
-                offset = i + 2;
-                ++i;
-            }
+
+            break;
         }
     }
 
@@ -661,7 +730,7 @@ STATIC HV * method_lexical_get_fqname_stash(pTHX_ SV **method_sv_ptr, char **cla
          * offset might be out of bounds if the name is mangled, which shouldn't happen
          * for a static name, but e.g.
          *
-         *     my $name = 'foo:';
+         *     my $name = "foo'";
          *     $self->$name();
          *
          * so check that the offset (4 in this case) is sane
@@ -713,7 +782,7 @@ STATIC HV * method_lexical_get_fqname_stash(pTHX_ SV **method_sv_ptr, char **cla
         return stash;
 }
 
-STATIC void method_lexical_cache_set(
+STATIC void method_lexical_cache_store(
     pTHX_
     MethodLexicalData * const data,
     const HV * const stash,
@@ -751,61 +820,42 @@ STATIC void method_lexical_cache_remove(
     method_lexical_data_list_free(aTHX_ head);
 }
 
-STATIC SV *method_lexical_cache_get(
+STATIC SV *method_lexical_cache_fetch(
     pTHX_
     MethodLexicalData *data,
     const HV * const stash,
     const SV * const method,
-    U32 * const retval
+    U32 * const found
 ) {
     const CV *cv = NULL;
-    *retval = FALSE;
+    U32 generation = 0;
+
+    *found = FALSE;
 
     if (data->list) {
         MethodLexicalDataList *head, *prev = NULL;
 
-        if (data->dynamic) {
-            for (head = data->list; head; prev = head, head = head->next) {
-                if ((stash == head->stash) && sv_eq((SV *)method, (SV *)head->method)) { /* cast off constness */
-                    if (head->generation) {
-                        U32 generation = mro_get_pkg_gen(stash);
+        for (head = data->list; head; prev = head, head = head->next) {
+            if ((stash == head->stash) &&
+                (!data->dynamic || sv_eq((SV *)method, (SV *)head->method))) { /* cast off constness */
+                if (head->generation) {
+                    if (!generation) {
+                        generation = mro_get_pkg_gen(stash);
+                    }
 
-                        /* fresh: cv may be NULL, indicating (still) not found */
-                        if (head->generation == generation) {
-                            cv = head->cv;
-                            *retval = TRUE;
-                            break;
-                        } else { /* stale: remove from list */
-                            method_lexical_cache_remove(aTHX_ data, prev, head);
-                            break;
-                        }
-                    } else {
+                    /* fresh: cv may be NULL, indicating (still) not found */
+                    if (head->generation == generation) {
                         cv = head->cv;
-                        *retval = TRUE;
+                        *found = TRUE;
+                        break;
+                    } else { /* stale: remove from list */
+                        method_lexical_cache_remove(aTHX_ data, prev, head);
                         break;
                     }
-                }
-            }
-        } else {
-            for (head = data->list; head; prev = head, head = head->next) {
-                if (stash == head->stash) {
-                    if (head->generation) {
-                        U32 generation = mro_get_pkg_gen(stash);
-
-                        /* fresh: cv may be NULL, indicating (still) not found */
-                        if (head->generation == generation) {
-                            cv = head->cv;
-                            *retval = TRUE;
-                            break;
-                        } else { /* stale: remove from list */
-                            method_lexical_cache_remove(aTHX_ data, prev, head);
-                            break;
-                        }
-                    } else {
-                        cv = head->cv;
-                        *retval = TRUE;
-                        break;
-                    }
+                } else {
+                    cv = head->cv;
+                    *found = TRUE;
+                    break;
                 }
             }
         }
@@ -836,7 +886,7 @@ STATIC CV *method_lexical_hash_get(pTHX_ const HV * const hv, const SV * const k
 
 STATIC void method_lexical_enter() {
     if (METHOD_LEXICAL_COMPILING != 0) {
-        croak("method_lexical: scope overflow");
+        croak("Method::Lexical: scope overflow");
     } else {
         METHOD_LEXICAL_COMPILING = 1;
         method_lexical_check_method_id = hook_op_check(OP_METHOD, method_lexical_check_method, NULL);
@@ -845,7 +895,7 @@ STATIC void method_lexical_enter() {
 
 STATIC void method_lexical_leave() {
     if (METHOD_LEXICAL_COMPILING != 1) {
-        croak("method_lexical: scope underflow");
+        croak("Method::Lexical: scope underflow");
     } else {
         METHOD_LEXICAL_COMPILING = 0;
         hook_op_check_remove(OP_METHOD, method_lexical_check_method_id);

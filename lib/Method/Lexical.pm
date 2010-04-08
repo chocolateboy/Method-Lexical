@@ -12,7 +12,7 @@ use Carp qw(croak carp);
 use Devel::Pragma qw(ccstash fqname my_hints new_scope on_require);
 use XSLoader;
 
-our $VERSION = '0.20';
+our $VERSION = '0.21';
 our @CARP_NOT = qw(B::Hooks::EndOfScope);
 
 XSLoader::load(__PACKAGE__, $VERSION);
@@ -130,7 +130,7 @@ sub import {
     # $subclass. The subclass might well have its own uses for $^H{$subclass}, so we keep
     # our mitts off it
     #
-    # Also, the unadorned class can't be used as a key if $METHOD_LEXICAL is 'Method::Lexical' (which
+    # Also, the unadorned class name can't be used as a key if $METHOD_LEXICAL is 'Method::Lexical' (which
     # it is) as the two uses conflict with and clobber each other
 
     my $subclass = "$METHOD_LEXICAL($class)";
@@ -159,14 +159,15 @@ sub import {
 
         my $fqname = fqname($name, $caller);
 
-        if (exists $installed->{$fqname}) {
-            $class->debug('redefining', $fqname) if ($DEBUG);
-            $installed->{$fqname} = $sub;
-        } else {
-            $class->debug('creating', $fqname) if ($DEBUG);
-            $installed->{$fqname} = $sub;
+        if ($DEBUG) {
+            if (exists $installed->{$fqname}) {
+                $class->debug('redefining', $fqname);
+            } else {
+                $class->debug('creating', $fqname);
+            }
         }
 
+        $installed->{$fqname} = $sub;
         $class_data->{$fqname} = $sub;
     }
 }
@@ -222,35 +223,30 @@ Method::Lexical - private methods and lexical method overrides
 
 =head1 SYNOPSIS
 
-    my $test = bless {};
+    package MyPragma;
 
-    $test->call_private(); # OK
-    $test->call_dump();    # OK
+    use base qw(Method::Lexical);
 
-    eval { $test->private() };
-    warn $@; # Can't locate object method "private" via package "main"
+    sub import {
+        shift->SUPER::import(
+            'private'         => sub { ... },
+            'UNIVERSAL::dump' => '+Data::Dump::pp'
+        )
+    }
 
-    eval { $test->dump() };
-    warn $@; # Can't locate object method "dump" via package "main"
+    package main;
+
+    my $self = bless {};
 
     {
-        use feature qw(say);
+        use MyPragma;
 
-        use Method::Lexical
-             private          => sub { 'private' },
-            'UNIVERSAL::dump' => '+Data::Dump::dump'
-        ;
-
-        sub call_private {
-            my $self = shift;
-            say $self->private();
-        }
-
-        sub call_dump {
-            my $self = shift;
-            say $self->dump();
-        }
+        $self->private(); # OK
+        $self->dump();    # OK
     }
+
+    $self->private; # Can't locate object method "private" via package "main"
+    $self->dump;    # Can't locate object method "dump" via package "main"
 
 =head1 DESCRIPTION
 
@@ -263,14 +259,14 @@ method to be called. The following example summarizes the type of keys and value
 can be supplied.
 
     use Method::Lexical
-      foo              => sub { print "foo", $/ }, # anonymous sub value
-      bar              => \&bar,                   # code ref value
-      new              => 'main::new',             # sub name value
-      dump             => '+Data::Dump::dump',     # autoload Data::Dump
-     'UNIVERSAL::dump' => \&Data::Dump::dump,      # define an inherited method
-     'UNIVERSAL::isa'  => \&my_isa,                # override an inherited method
-     -autoload         => 1,                       # autoload all subs passed by name
-     -debug            => 1;                       # show diagnostic messages
+        foo              => sub { ... },         # anonymous sub value
+        bar              => \&bar,               # code ref value
+        new              => 'main::new',         # sub name value
+        dump             => '+Data::Dump::dump', # autoload Data::Dump
+       'UNIVERSAL::dump' => \&Data::Dump::dump,  # define an inherited method
+       'UNIVERSAL::isa'  => \&my_isa,            # override an inherited method
+      '-autoload'        => 1,                   # autoload modules for all subs passed by name
+      '-debug'           => 1;                   # show diagnostic messages
 
 =head1 OPTIONS
 
@@ -281,13 +277,14 @@ The following options are supported.
 
 If the C<value> is a string containing a package-qualified subroutine name, then the subroutine's module is
 automatically loaded. This can either be done on a per-method basis by prefixing the C<value>
-with a C<+>, or for all named C<value> arguments by supplying the C<-autoload> option with a true value e.g.
+with a C<+>, or for all C<value> arguments with qualified names by supplying the
+C<-autoload> option with a true value e.g.
 
     use Method::Lexical
-         foo      => 'MyFoo::foo',
-         bar      => 'MyBar::bar',
-         baz      => 'MyBaz::baz',
-        -autoload => 1;
+         foo       => 'MyFoo::foo',
+         bar       => 'MyBar::bar',
+         baz       => 'MyBaz::baz',
+       '-autoload' => 1;
 or
 
     use MyFoo;
@@ -298,6 +295,12 @@ or
          bar => '+MyBar::bar', # autoload MyBar
          baz =>  'MyBaz::baz';
 
+This option should not be confused with lexical AUTOLOAD methods, which are also supported e.g.
+
+    use Method::Lexical
+        AUTOLOAD             => sub { ... },
+       'UNIVERSAL::AUTOLOAD' => \&autoload;
+
 =head2 -debug
 
 A trace of the module's actions can be enabled or disabled lexically by supplying the C<-debug> option
@@ -306,9 +309,9 @@ with a true or false value. The trace is printed to STDERR.
 e.g.
 
     use Method::Lexical
-         foo   => \&foo,
-         bar   => sub { ... },
-        -debug => 1;
+         foo    => \&foo,
+         bar    => sub { ... },
+       '-debug' => 1;
 
 =head1 METHODS
 
@@ -321,9 +324,7 @@ lexically-scoped pragmas that export methods whose use is restricted to the call
 
     use base qw(Method::Lexical);
 
-    use Data::Dump qw(dump);
-
-    sub import { shift->SUPER::import('UNIVERSAL::dump' => \&dump) }
+    sub import { shift->SUPER::import('UNIVERSAL::dump' => '+Data::Dump::dump') }
 
     1;
 
@@ -331,18 +332,16 @@ Client code can then import lexical methods from the module:
 
     #!/usr/bin/env perl
 
-    use FileHandle;
+    use CGI;
 
     {
-        use feature qw(say);
-
         use Universal::Dump;
 
-        say FileHandle->new->dump; # OK
+        say CGI->new->dump; # OK
     }
 
-    eval { FileHandle->new->dump };
-    warn $@; # Can't locate object method "dump" via package "FileHandle"
+    eval { CGI->new->dump };
+    warn $@; # Can't locate object method "dump" via package "CGI"
 
 =head2 unimport
 
@@ -424,7 +423,7 @@ The method resolution order for lexical method calls on pre-5.10 perls is curren
 
 =head1 VERSION
 
-0.20
+0.21
 
 =head1 SEE ALSO
 
@@ -444,7 +443,7 @@ chocolateboy <chocolate@cpan.org>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (C) 2009 by chocolateboy
+Copyright (C) 2009-2010 by chocolateboy
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself, either Perl version 5.8.8 or,

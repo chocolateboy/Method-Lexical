@@ -45,7 +45,7 @@ use warnings;
         is($self->$fqname, $want, '$self->$fqname ('.__LINE__.')');
 
         @ISA = @{$isa->[0]};
-               $want = $isa->[1];
+        $want = $isa->[1];
 
         $fqname = 'SUPER::private';
         is(__PACKAGE__->SUPER::private, $want, '__PACKAGE__->SUPER::private ('.__LINE__.')');
