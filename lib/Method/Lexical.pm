@@ -12,7 +12,7 @@ use Carp qw(croak carp);
 use Devel::Pragma qw(ccstash fqname my_hints new_scope on_require);
 use XSLoader;
 
-our $VERSION = '0.22';
+our $VERSION = '0.23';
 our @CARP_NOT = qw(B::Hooks::EndOfScope);
 
 XSLoader::load(__PACKAGE__, $VERSION);
@@ -234,7 +234,11 @@ Method::Lexical - private methods and lexical method overrides
         )
     }
 
-    package main;
+=cut
+
+=pod
+
+    #!/usr/bin/env perl
 
     my $self = bless {};
 
@@ -251,7 +255,7 @@ Method::Lexical - private methods and lexical method overrides
 =head1 DESCRIPTION
 
 C<Method::Lexical> is a lexically-scoped pragma that implements lexical methods i.e. methods
-whose use is restricted to the lexical scope in which they are defined.
+whose use is restricted to the lexical scope in which they are imported or declared.
 
 The C<use Method::Lexical> statement takes a list of key/value pairs in which the keys are method
 names and the values are subroutine references or strings containing the package-qualified name of the
@@ -423,7 +427,7 @@ The method resolution order for lexical method calls on pre-5.10 perls is curren
 
 =head1 VERSION
 
-0.22
+0.23
 
 =head1 SEE ALSO
 
@@ -443,7 +447,7 @@ chocolateboy <chocolate@cpan.org>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (C) 2009-2010 by chocolateboy
+Copyright (C) 2009-2011 by chocolateboy
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself, either Perl version 5.8.8 or,

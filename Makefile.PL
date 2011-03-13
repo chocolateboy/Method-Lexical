@@ -11,7 +11,7 @@ our $OPTIMIZE;
 
 if ($Config{gccversion}) {
     $OPTIMIZE = '-O3 -Wall -W';
-    $OPTIMIZE .= ' -g -Wdeclaration-after-statement' if (-d '.svn');
+    $OPTIMIZE .= ' -g -Wdeclaration-after-statement' if (-d 'dev');
 } elsif ($Config{osname} eq 'MSWin32') {
     $OPTIMIZE = '-O2 -W4';
 } else {
@@ -47,7 +47,11 @@ WriteMakefile(
             configure_requires => {
                 'ExtUtils::Depends' => '0.304',
                 %XS_PREREQUISITES
-            }})
+            },
+            resources => {
+                repository => 'http://github.com/chocolateboy/Method-Lexical'
+            }
+        })
         : ()
     ),
     (eval($ExtUtils::MakeMaker::VERSION) >= 6.31 ? (LICENSE => 'perl') : ()),
