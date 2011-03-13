@@ -212,7 +212,7 @@ STATIC void method_lexical_data_list_free(pTHX_ void *vp) {
 /*
  * TODO
  *
- * the method name may be qualified e.g. 
+ * the method name may be qualified e.g.
  *
  *     $self->Foo::Bar::baz($quux);
  *
@@ -306,7 +306,7 @@ STATIC OP * method_lexical_check_method_static(pTHX_ OP * o) {
             o->op_ppaddr = method_lexical_method_static;
         } /* else no lexical method of this name */
     }
-        
+
     return o;
 }
 
@@ -351,7 +351,7 @@ STATIC OP * method_lexical_check_method_static(pTHX_ OP * o) {
  * is the common case.
  *
  * [1] http://www.xray.mpe.mpg.de/mailing-lists/perl5-porters/2008-01/msg00809.html
- */ 
+ */
 
 STATIC OP * method_lexical_method_dynamic(pTHX) {
     dSP;
@@ -383,7 +383,7 @@ STATIC OP * method_lexical_method_dynamic(pTHX) {
             } /* else cached, but NULL i.e. not a lexical method - fall through */
         } /* some weird invocant without a stash: fall through and let perl deal with it */
 
-        return CALL_FPTR(annotation->op_ppaddr)(aTHX);
+        return annotation->op_ppaddr(aTHX);
     }
 }
 
@@ -411,7 +411,7 @@ STATIC OP *method_lexical_method_static(pTHX) {
         } /* else cached, but NULL i.e. not a lexical method - fall through */
     } /* some weird invocant without a stash: fall through and let perl deal with it */
 
-    return CALL_FPTR(annotation->op_ppaddr)(aTHX);
+    return annotation->op_ppaddr(aTHX);
 }
 
 STATIC SV * method_lexical_method_common(
@@ -432,7 +432,7 @@ STATIC SV * method_lexical_method_common(
 
     if (!cv && data->autoload) {
         const GV * gv;
-        
+
         generation = mro_get_pkg_gen(stash);
 
         if (METHOD_LEXICAL_DEBUG) {
@@ -478,7 +478,7 @@ STATIC CV * method_lexical_lookup_method(
         /*
          * the installed hash ($^H{'Method::Lexical'}) can't be modified/countermanded
          * after the fact, so its lookups can be cached without recourse to the same
-         * generational invaldiation as "public" methods
+         * generational invalidation as "public" methods
          */
         if (generation_ptr) {
             *generation_ptr = 0;
@@ -542,13 +542,19 @@ STATIC void method_lexical_set_autoload(
          * pass along the same data via some unused fields in the CV
          */
 
+        /* chocolateboy 2011-03-13: portability fix for perl 5.13 */
+#ifdef CvSTASH_set
+        CvSTASH_set(cv, (HV *)stash); /* temporarily cast off constness */
+#else
         CvSTASH(cv) = (HV *)stash; /* temporarily cast off constness */
+#endif
+
         SvPV_set(cv, (char *)SvPVX(method)); /* cast to lose constness warning */
         SvCUR_set(cv, SvCUR(method));
         return;
     } else
 #endif
-    
+
     {
         HV* varstash;
         GV* vargv;
@@ -592,7 +598,9 @@ STATIC void method_lexical_set_autoload(
 
         sv_setpv(varsv, class_name);
         sv_catpvs(varsv, "::");
-        sv_catpv(varsv, SvPVX(method));
+        /* Ensure SvSETMAGIC() is called if necessary. In particular, to clear
+           tainting if $FOO::AUTOLOAD was previously tainted, but is not now.  */
+        sv_catpv_mg(varsv, SvPVX(method));
     }
 
     /* </copypasta> */
@@ -679,7 +687,7 @@ STATIC HV * method_lexical_get_fqname_stash(pTHX_ SV **method_sv_ptr, char **cla
     fqname = SvPV(fqmethod_sv, len);
     last = len - 1;
 
-    /* 
+    /*
      * kill two birds with one scan:
      *
      * 1) normalized_sv: normalize the fully-qualified name if it contains '\'' i.e. s/'/::/g
@@ -707,7 +715,7 @@ STATIC HV * method_lexical_get_fqname_stash(pTHX_ SV **method_sv_ptr, char **cla
              * only ranges up to len - 2 (e.g. 3). In the case above, we're not copying characters,
              * and so can use a reduced upper bound to remove a bounds check. In this case we
              * are copying, and thus need to scan to the end and include the bounds check.
-             */ 
+             */
             for (j = offset; j < len; ++j) {
                 if (fqname[j] == '\'') {
                     sv_catpvs(normalized_sv, "::");

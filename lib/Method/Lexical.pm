@@ -12,7 +12,7 @@ use Carp qw(croak carp);
 use Devel::Pragma qw(ccstash fqname my_hints new_scope on_require);
 use XSLoader;
 
-our $VERSION = '0.21';
+our $VERSION = '0.22';
 our @CARP_NOT = qw(B::Hooks::EndOfScope);
 
 XSLoader::load(__PACKAGE__, $VERSION);
@@ -423,7 +423,7 @@ The method resolution order for lexical method calls on pre-5.10 perls is curren
 
 =head1 VERSION
 
-0.21
+0.22
 
 =head1 SEE ALSO
 

@@ -1,5 +1,8 @@
 Revision history for Perl extension Method::Lexical.
 
+0.22  Sun Mar 13 15:34:31 2011
+    - portability fix for perl 5.13 - thanks, Serguei Trouchelle
+
 0.21  Thu Apr 8 03:18:04 2010
     - compatibility fix for perl 5.12
     - minor XS refactoring
