@@ -31,7 +31,7 @@ sub start_trace() { set_debug(1) } # undocumented
 sub stop_trace()  { set_debug(0) } # undocumented
 
 # This logs method installations/uninstallations
-sub debug($$$$$) {
+sub debug {
     my ($class, $action, $fqname) = @_;
     carp "$class: $action $fqname";
 }
@@ -50,7 +50,7 @@ sub pcroak($$) {
 
 # split "Foo::Bar::baz" into the stash (Foo::Bar) and the name (baz)
 sub _split($) {
-    my @split = $_[0] =~ /^(.*)::([^:]+)$/; 
+    my @split = $_[0] =~ /^(.*)::([^:]+)$/;
     return wantarray ? @split : \@split;
 }
 
@@ -172,7 +172,7 @@ sub import {
         $class_data->{$fqname} = $sub;
     }
 }
-   
+
 # uninstall one or more lexical subs from the current scope
 sub unimport {
     my $class = shift;
@@ -260,18 +260,21 @@ whose use is restricted to the lexical scope in which they are imported or decla
 
 The C<use Method::Lexical> statement takes a hashref or a list of key/value pairs in which the keys are method
 names and the values are subroutine references or strings containing the package-qualified name of the
-method to be called. The following example summarizes the types of keys and values that
-can be supplied.
+method to be called. Unqualifed method names in keys are installed as methods in the current package.
+The following example summarizes the types of keys and values that can be supplied.
 
-    use Method::Lexical
-        foo              => sub { ... },         # anonymous sub value
-        bar              => \&bar,               # code ref value
-        new              => 'main::new',         # sub name value
+    use Method::Lexical {
+        foo              => \&foo,               # unqualified method-name key: equivalent to __PACKAGE__ . '::foo' e.g. main::foo
+        MyClass::foo     => \&foo,               # qualified method-name key
+        bar              => sub { ... },         # anonymous sub value
+        baz              => \&baz,               # coderef value
+        quux             => 'main::quux',        # sub name value
         dump             => '+Data::Dump::dump', # autoload Data::Dump
-       'UNIVERSAL::dump' => \&Data::Dump::dump,  # define an inherited method
-       'UNIVERSAL::isa'  => \&my_isa,            # override an inherited method
+       'UNIVERSAL::dump' => \&Data::Dump::dump,  # define a universal method
+       'UNIVERSAL::isa'  => \&my_isa,            # override a universal method
       '-autoload'        => 1,                   # autoload modules for all subs passed by name
-      '-debug'           => 1;                   # show diagnostic messages
+      '-debug'           => 1                    # show diagnostic messages
+    };
 
 =head1 OPTIONS
 
@@ -352,7 +355,7 @@ Client code can then import lexical methods from the module:
 
 =head2 unimport
 
-C<Method::Lexical::unimport> removes the specified lexical methods from the current scope, or all lexical methods 
+C<Method::Lexical::unimport> removes the specified lexical methods from the current scope, or all lexical methods
 if no arguments are supplied.
 
     use Method::Lexical foo => \&foo;
