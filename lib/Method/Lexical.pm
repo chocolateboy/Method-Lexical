@@ -260,11 +260,11 @@ whose use is restricted to the lexical scope in which they are imported or decla
 
 The C<use Method::Lexical> statement takes a hashref or a list of key/value pairs in which the keys are method
 names and the values are subroutine references or strings containing the package-qualified name of the
-method to be called. Unqualifed method names in keys are installed as methods in the current package.
+method to be called. Unqualifed method names in keys are installed as methods in the currently-compiling package.
 The following example summarizes the types of keys and values that can be supplied.
 
     use Method::Lexical {
-        foo              => \&foo,               # unqualified method-name key: equivalent to __PACKAGE__ . '::foo' e.g. main::foo
+        foo              => \&foo,               # unqualified method-name key: installed in the currently-compiling package e.g. main::foo
         MyClass::foo     => \&foo,               # qualified method-name key
         bar              => sub { ... },         # anonymous sub value
         baz              => \&baz,               # coderef value
