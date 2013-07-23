@@ -19,8 +19,8 @@ if ($Config{gccversion}) {
 }
 
 our %XS_PREREQUISITES = (
-    'B::Hooks::OP::Annotation' => '0.43',
-    'B::Hooks::OP::Check'      => '0.18',
+    'B::Hooks::OP::Annotation' => '0.44',
+    'B::Hooks::OP::Check'      => '0.19',
 );
 
 our %XS_DEPENDENCIES = ExtUtils::Depends->new(
@@ -32,7 +32,7 @@ WriteMakefile(
     NAME          => 'Method::Lexical',
     VERSION_FROM  => 'lib/Method/Lexical.pm',
     PREREQ_PM => {
-        'B::Hooks::EndOfScope' => '0.09',
+        'B::Hooks::EndOfScope' => '0.12',
         'Devel::Pragma'        => '0.54',
         %XS_PREREQUISITES
     },

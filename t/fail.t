@@ -5,14 +5,17 @@ use warnings;
 
 use Test::More tests => 33;
 
-our $UNDEF = qr{^Can't call method "private" on an undefined value };
-our $NONREF = qr{^Can't call method "private" without a package or object reference };
-our $UNBLESSED = qr{^Can't call method "private" on unblessed reference };
 our $GLOB = qr{^Can't locate object method "private" via package "IO::(?:File|Handle)" };
 our $NONE1 = qr{^Can't locate object method "NoSuchMethod" via package "main" };
 our $NONE2 = qr{^Can't locate object method "Method" via package "No::Such" };
 our $SUPER1 = qr{Can't locate object method "SUPER" via package "main" };
 our $SUPER2 = qr{Can't locate object method "SUPER" via package "Foo" };
+our $UNBLESSED = qr{^Can't call method "private" on unblessed reference };
+our $UNDEF = qr{^Can't call method "private" on an undefined value };
+
+our $NONREF = ($] >= 5.017005)
+    ? qr{^Can't locate object method "private" via package }
+    : qr{^Can't call method "private" without a package or object reference };
 
 {
     use Method::Lexical 'UNIVERSAL::private' => sub { 'private!' };

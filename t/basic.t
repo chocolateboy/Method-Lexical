@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-use Test::More tests => 22;
+use Test::More tests => 30;
 
 my $error1 = qr{^Can't locate object method "private" via package "Method::Lexical::Test"};
 my $error2 = qr{^Can't locate object method "method_private_test" via package "Method::Lexical::Test"};
@@ -26,16 +26,35 @@ package Method::Lexical::Test;
 
     my $test = Method::Lexical::Test->new();
 
-    ::is(Method::Lexical::Test->method_private_test(), 'method_private_test!', 'UNIVERSAL: private class method');
-    ::is(Method::Lexical::Test->$name(), 'method_private_test!', 'UNIVERSAL: private class method (dynamic)');
-    ::is($test->method_private_test(), 'method_private_test!', 'UNIVERSAL: private instance method');
-    ::is($test->$name(), 'method_private_test!', 'UNIVERSAL: private instance method (dynamic)');
+    ::is(Method::Lexical::Test->method_private_test(), 'method_private_test!', 'UNIVERSAL (list): private class method');
+    ::is(Method::Lexical::Test->$name(), 'method_private_test!', 'UNIVERSAL (list): private class method (dynamic)');
+    ::is($test->method_private_test(), 'method_private_test!', 'UNIVERSAL (list): private instance method');
+    ::is($test->$name(), 'method_private_test!', 'UNIVERSAL (list): private instance method (dynamic)');
 
     {
-        ::is(Method::Lexical::Test->method_private_test(), 'method_private_test!', 'UNIVERSAL: nested private class method');
-        ::is(Method::Lexical::Test->$name(), 'method_private_test!', 'UNIVERSAL: nested private class method (dynamic)');
-        ::is($test->method_private_test(), 'method_private_test!', 'UNIVERSAL: nested private instance method');
-        ::is($test->$name(), 'method_private_test!', 'UNIVERSAL: nested private instance method (dynamic)');
+        ::is(Method::Lexical::Test->method_private_test(), 'method_private_test!', 'UNIVERSAL (list): nested private class method');
+        ::is(Method::Lexical::Test->$name(), 'method_private_test!', 'UNIVERSAL (list): nested private class method (dynamic)');
+        ::is($test->method_private_test(), 'method_private_test!', 'UNIVERSAL (list): nested private instance method');
+        ::is($test->$name(), 'method_private_test!', 'UNIVERSAL (list): nested private instance method (dynamic)');
+    }
+}
+
+# confirm import works with a hashref
+{
+    use Method::Lexical { 'UNIVERSAL::method_private_test' => sub { 'method_private_test!' } };
+
+    my $test = Method::Lexical::Test->new();
+
+    ::is(Method::Lexical::Test->method_private_test(), 'method_private_test!', 'UNIVERSAL (hashref): private class method');
+    ::is(Method::Lexical::Test->$name(), 'method_private_test!', 'UNIVERSAL (hashref): private class method (dynamic)');
+    ::is($test->method_private_test(), 'method_private_test!', 'UNIVERSAL (hashref): private instance method');
+    ::is($test->$name(), 'method_private_test!', 'UNIVERSAL (hashref): private instance method (dynamic)');
+
+    {
+        ::is(Method::Lexical::Test->method_private_test(), 'method_private_test!', 'UNIVERSAL (hashref): nested private class method');
+        ::is(Method::Lexical::Test->$name(), 'method_private_test!', 'UNIVERSAL (hashref): nested private class method (dynamic)');
+        ::is($test->method_private_test(), 'method_private_test!', 'UNIVERSAL (hashref): nested private instance method');
+        ::is($test->$name(), 'method_private_test!', 'UNIVERSAL (hashref): nested private instance method (dynamic)');
     }
 }
 
@@ -57,7 +76,7 @@ package Method::Lexical::Test;
 
 {
     my $external;
-   
+
     BEGIN { $external = sub { 'Test::More::method_private_external_test!' } }
     use Method::Lexical 'Test::More::method_private_external_test' => $external;
     my $external_name = 'method_private_external_test';

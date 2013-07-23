@@ -12,7 +12,7 @@ use Carp qw(croak carp);
 use Devel::Pragma qw(ccstash fqname my_hints new_scope on_require);
 use XSLoader;
 
-our $VERSION = '0.23';
+our $VERSION = '0.24';
 our @CARP_NOT = qw(B::Hooks::EndOfScope);
 
 XSLoader::load(__PACKAGE__, $VERSION);
@@ -72,7 +72,8 @@ sub load($$) {
 #    Method::Lexical) in this scope, so that they can be unimported with "no MyPragma (...)"
 
 sub import {
-    my ($class, %bindings) = @_;
+    my $class = shift;
+    my %bindings = ((@_ == 1) && _isa($_[0], 'HASH')) ? %{shift()} : @_; # hash or hashref
 
     return unless (%bindings);
 
@@ -257,9 +258,9 @@ Method::Lexical - private methods and lexical method overrides
 C<Method::Lexical> is a lexically-scoped pragma that implements lexical methods i.e. methods
 whose use is restricted to the lexical scope in which they are imported or declared.
 
-The C<use Method::Lexical> statement takes a list of key/value pairs in which the keys are method
+The C<use Method::Lexical> statement takes a hashref or a list of key/value pairs in which the keys are method
 names and the values are subroutine references or strings containing the package-qualified name of the
-method to be called. The following example summarizes the type of keys and values that
+method to be called. The following example summarizes the types of keys and values that
 can be supplied.
 
     use Method::Lexical
@@ -284,11 +285,12 @@ automatically loaded. This can either be done on a per-method basis by prefixing
 with a C<+>, or for all C<value> arguments with qualified names by supplying the
 C<-autoload> option with a true value e.g.
 
-    use Method::Lexical
+    use Method::Lexical {
          foo       => 'MyFoo::foo',
          bar       => 'MyBar::bar',
          baz       => 'MyBaz::baz',
-       '-autoload' => 1;
+       '-autoload' => 1
+    };
 or
 
     use MyFoo;
@@ -312,10 +314,11 @@ with a true or false value. The trace is printed to STDERR.
 
 e.g.
 
-    use Method::Lexical
+    use Method::Lexical {
          foo    => \&foo,
          bar    => sub { ... },
-       '-debug' => 1;
+       '-debug' => 1
+    };
 
 =head1 METHODS
 
@@ -427,7 +430,7 @@ The method resolution order for lexical method calls on pre-5.10 perls is curren
 
 =head1 VERSION
 
-0.23
+0.24
 
 =head1 SEE ALSO
 
@@ -447,7 +450,7 @@ chocolateboy <chocolate@cpan.org>
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (C) 2009-2011 by chocolateboy
+Copyright (C) 2009-2013 by chocolateboy
 
 This library is free software; you can redistribute it and/or modify
 it under the same terms as Perl itself, either Perl version 5.8.8 or,
