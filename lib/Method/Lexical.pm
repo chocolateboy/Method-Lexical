@@ -294,6 +294,7 @@ C<-autoload> option with a true value e.g.
          baz       => 'MyBaz::baz',
        '-autoload' => 1
     };
+
 or
 
     use MyFoo;
