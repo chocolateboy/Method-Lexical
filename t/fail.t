@@ -17,6 +17,8 @@ our $NONREF = ($] >= 5.017005)
     ? qr{^Can't locate object method "private" via package }
     : qr{^Can't call method "private" without a package or object reference };
 
+$NONREF = qr{^Can't locate object method "private" via package } if $] >= 5.017005;
+
 {
     use Method::Lexical 'UNIVERSAL::private' => sub { 'private!' };
 
