@@ -14,6 +14,8 @@ our $NONE2 = qr{^Can't locate object method "Method" via package "No::Such" };
 our $SUPER1 = qr{Can't locate object method "SUPER" via package "main" };
 our $SUPER2 = qr{Can't locate object method "SUPER" via package "Foo" };
 
+$NONREF = qr{^Can't locate object method "private" via package } if $] >= 5.017005;
+
 {
     use Method::Lexical 'UNIVERSAL::private' => sub { 'private!' };
 
