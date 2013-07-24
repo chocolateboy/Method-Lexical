@@ -14,4 +14,6 @@ t/cache.t
 t/depth.t
 t/fail.t
 t/fqname.t
+t/method_name_value.t
+t/module_autoload_fail.t
 t/pod.t

@@ -12,11 +12,11 @@ my $main = bless {};
     use Data::Dumper;
     our $AUTOLOAD;
 
-    use Method::Lexical
+    use Method::Lexical {
          AUTOLOAD             => sub { [ 1, $AUTOLOAD, @_ ] },
         'main::AUTOLOAD'      => sub { [ 2, $AUTOLOAD, @_ ] },
         'UNIVERSAL::AUTOLOAD' => sub { [ 3, $AUTOLOAD, @_ ] },
-    ;
+    };
 
     my $self = bless {};
     my $dumper = Data::Dumper->new([ 1 ]);
@@ -44,13 +44,13 @@ my $main = bless {};
     is_deeply(main->$foo(42), [ 2, 'main::foo', 'main', 42 ]);
     is_deeply($main->$foo(42), [ 2, 'main::foo', $main, 42 ]);
 
-    is_deeply(Data::Dumper->foo(), [ 3, 'Data::Dumper::foo', 'Data::Dumper' ]); 
-    is_deeply($dumper->foo(), [ 3, 'Data::Dumper::foo', $dumper ]); 
-    is_deeply(Data::Dumper->foo(42), [ 3, 'Data::Dumper::foo', 'Data::Dumper', 42 ]); 
-    is_deeply($dumper->foo(42), [ 3, 'Data::Dumper::foo', $dumper, 42 ]); 
+    is_deeply(Data::Dumper->foo(), [ 3, 'Data::Dumper::foo', 'Data::Dumper' ]);
+    is_deeply($dumper->foo(), [ 3, 'Data::Dumper::foo', $dumper ]);
+    is_deeply(Data::Dumper->foo(42), [ 3, 'Data::Dumper::foo', 'Data::Dumper', 42 ]);
+    is_deeply($dumper->foo(42), [ 3, 'Data::Dumper::foo', $dumper, 42 ]);
 
-    is_deeply(Data::Dumper->$foo(), [ 3, 'Data::Dumper::foo', 'Data::Dumper' ]); 
-    is_deeply($dumper->$foo(), [ 3, 'Data::Dumper::foo', $dumper ]); 
-    is_deeply(Data::Dumper->$foo(42), [ 3, 'Data::Dumper::foo', 'Data::Dumper', 42 ]); 
-    is_deeply($dumper->$foo(42), [ 3, 'Data::Dumper::foo', $dumper, 42 ]); 
+    is_deeply(Data::Dumper->$foo(), [ 3, 'Data::Dumper::foo', 'Data::Dumper' ]);
+    is_deeply($dumper->$foo(), [ 3, 'Data::Dumper::foo', $dumper ]);
+    is_deeply(Data::Dumper->$foo(42), [ 3, 'Data::Dumper::foo', 'Data::Dumper', 42 ]);
+    is_deeply($dumper->$foo(42), [ 3, 'Data::Dumper::foo', $dumper, 42 ]);
 }

@@ -662,7 +662,7 @@ STATIC HV * method_lexical_get_super_stash(pTHX_ const char * const class_name, 
     HV * stash = method_lexical_get_invocant_stash(aTHX_ invocant, NULL);
 
     if (stash) {
-        const AV * const isa = mro_get_linear_isa((HV *)stash); /* temporarily cast off constness */
+        AV * const isa = mro_get_linear_isa((HV *)stash); /* temporarily cast off constness */
 
         /* AvFILL is $#ARRAY i.e. -1 if the array is empty, so > 0 means two or more */
         if (isa && ((AvFILL(isa)) > 0)) { /* at least two items: self and the superclass */
@@ -679,8 +679,8 @@ STATIC HV * method_lexical_get_super_stash(pTHX_ const char * const class_name, 
 }
 
 STATIC HV * method_lexical_get_fqname_stash(pTHX_ SV **method_sv_ptr, char **class_name_ptr) {
-    HV *stash;
-    const char *fqname;
+    HV * stash = NULL;
+    const char * fqname;
     STRLEN len, last, i, offset = 0; /* XXX bugfix: make sure offset is initialized to 0 */
     SV * invocant_sv, *normalized_sv = NULL, *fqmethod_sv = *method_sv_ptr;
 

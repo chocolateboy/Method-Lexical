@@ -27,4 +27,4 @@ requires:
   Devel::Pragma: 0.54
 resources:
   repository: http://github.com/chocolateboy/Method-Lexical
-version: 0.24
+version: 0.30

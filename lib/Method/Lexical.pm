@@ -8,11 +8,11 @@ use warnings;
 use B::Hooks::EndOfScope;
 use B::Hooks::OP::Check;
 use B::Hooks::OP::Annotation;
-use Carp qw(croak carp);
+use Carp qw(carp confess);
 use Devel::Pragma qw(ccstash fqname my_hints new_scope on_require);
 use XSLoader;
 
-our $VERSION = '0.24';
+our $VERSION = '0.30';
 our @CARP_NOT = qw(B::Hooks::EndOfScope);
 
 XSLoader::load(__PACKAGE__, $VERSION);
@@ -25,13 +25,11 @@ my $METHOD_LEXICAL = xs_signature();
 
 # accessors for the debug flags - note there is one for Perl ($DEBUG) and one defined
 # in the XS (METHOD_LEXICAL_DEBUG). The accessors ensure that the two are kept in sync
-sub get_debug()   { $DEBUG }
-sub set_debug($)  { xs_set_debug($DEBUG = shift || 0) }
-sub start_trace() { set_debug(1) } # undocumented
-sub stop_trace()  { set_debug(0) } # undocumented
+sub _get_debug()   { $DEBUG }
+sub _set_debug($)  { xs_set_debug($DEBUG = shift || 0) }
 
 # This logs method installations/uninstallations
-sub debug {
+sub _debug {
     my ($class, $action, $fqname) = @_;
     carp "$class: $action $fqname";
 }
@@ -42,24 +40,18 @@ sub _isa($$) {
     return Scalar::Util::blessed(ref) ? $ref->isa($class) : ref($ref) eq $class;
 }
 
-# croak with the name of this package prefixed
-sub pcroak($$) {
-    my ($class, $msg) = @_;
-    croak "$class: $msg";
-}
+# given a fully-qualified subroutine name (e.g. Foo::Bar::baz) load the module (Foo::Bar)
+sub _load($) {
+    my $fqname = shift;
+    my ($module, $subname) = fqname($fqname);
 
-# split "Foo::Bar::baz" into the stash (Foo::Bar) and the name (baz)
-sub _split($) {
-    my @split = $_[0] =~ /^(.*)::([^:]+)$/;
-    return wantarray ? @split : \@split;
-}
-
-# load a perl module
-sub load($$) {
-    my ($class, $symbol) = @_;
-    my $module = _split($symbol)->[0];
     eval "require $module";
-    $class->pcroak("can't load $module: $@") if ($@);
+
+    if ($@) {
+        no strict 'refs';
+        # don't raise an error if the package is declared in an already-loaded file
+        confess "Can't load $module for subroutine $fqname: $@" unless (%{"$module\::"});
+    }
 }
 
 # install one or more lexical methods in the current scope
@@ -84,10 +76,10 @@ sub import {
     my $installed;
 
     if (defined $debug) {
-        my $old_debug = get_debug();
+        my $old_debug = _get_debug();
         if ($debug != $old_debug) {
-            set_debug($debug);
-            on_scope_end { set_debug($old_debug) };
+            _set_debug($debug);
+            on_scope_end { _set_debug($old_debug) };
         }
     }
 
@@ -151,20 +143,26 @@ sub import {
 
         # normalize bindings
         unless (_isa($sub, 'CODE')) {
+            my $_autoload = $sub =~ s{^\+}{}; # autoload this sub's package
+            my $subname = fqname($sub); # XXX watch out for fqname returning a list
+
+            if ($_autoload || $autoload) {
+                _load($subname);
+            }
+
             $sub = do {
-                $class->load($sub) if (($sub =~ s/^\+//) || $autoload);
                 no strict 'refs';
-                *{$sub}{CODE}
-            } || $class->pcroak("can't find subroutine: '$sub'");
+                *{$subname}{CODE}
+            } || confess "Can't find subroutine for target $name: '$subname'";
         }
 
         my $fqname = fqname($name, $caller);
 
         if ($DEBUG) {
             if (exists $installed->{$fqname}) {
-                $class->debug('redefining', $fqname);
+                $class->_debug('redefining', $fqname);
             } else {
-                $class->debug('creating', $fqname);
+                $class->_debug('creating', $fqname);
             }
         }
 
@@ -194,7 +192,7 @@ sub unimport {
         if ($sub) { # the coderef of the method this subclass installed
             # if the current sub ($installed->{$fqname}) is the sub this module installed ($class_data->{$fqname})
             if (Scalar::Util::refaddr($sub) == Scalar::Util::refaddr($installed->{$fqname})) {
-                $class->debug('unimporting', $fqname) if ($DEBUG);
+                $class->_debug('unimporting', $fqname) if ($DEBUG);
 
                 # what import adds, unimport taketh away
                 delete $new_installed->{$fqname};
@@ -265,10 +263,10 @@ The following example summarizes the types of keys and values that can be suppli
 
     use Method::Lexical {
         foo              => \&foo,               # unqualified method-name key: installed in the currently-compiling package e.g. main::foo
-        MyClass::foo     => \&foo,               # qualified method-name key
+        MyClass::foo     => \&foo,               # qualified method-name key: installed in the specified package
         bar              => sub { ... },         # anonymous sub value
         baz              => \&baz,               # coderef value
-        quux             => 'main::quux',        # sub name value
+        quux             => 'main::quux',        # sub name value: unqualified names are resolved to the currently-compiling package
         dump             => '+Data::Dump::dump', # autoload Data::Dump
        'UNIVERSAL::dump' => \&Data::Dump::dump,  # define a universal method
        'UNIVERSAL::isa'  => \&my_isa,            # override a universal method
@@ -434,7 +432,7 @@ The method resolution order for lexical method calls on pre-5.10 perls is curren
 
 =head1 VERSION
 
-0.24
+0.30
 
 =head1 SEE ALSO
 

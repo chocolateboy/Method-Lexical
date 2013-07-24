@@ -14,17 +14,17 @@ use warnings;
 
     use Test::More tests => 54;
 
-    use Method::Lexical
+    use Method::Lexical {
          private                  => sub { 'child!'  },
         'MyTest::Mother::private' => sub { 'mother!' },
         'MyTest::Father::private' => sub { 'father!' },
-    ;
+    };
 
     our @ISA;
 
     my $self = bless {};
     my $fqname;
-   
+
     $fqname = 'private';
     is(__PACKAGE__->private, 'child!', '__PACKAGE__->private');
     is(__PACKAGE__->$fqname, 'child!', '__PACKAGE__->$fqname');

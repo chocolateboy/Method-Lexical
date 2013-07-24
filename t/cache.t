@@ -5,7 +5,7 @@ use warnings;
 
 # this verifies that method caching doesn't break anything, but the caching behaviour
 # can better be verified by looking at the output of this test with e.g.
-# 
+#
 #     METHOD_LEXICAL_DEBUG=1 prove -vb t/cache.t
 
 {
@@ -19,17 +19,17 @@ use warnings;
 
     use Test::More tests => 136;
 
-    use Method::Lexical
+    use Method::Lexical {
          private                  => sub { 'child!'  },
         'MyTest::Mother::private' => sub { 'mother!' },
         'MyTest::Father::private' => sub { 'father!' },
-    ;
+    };
 
     our @ISA;
 
     my $self = bless {};
     my $fqname;
-   
+
     for my $isa (
         [ [ qw(MyTest::Mother) ], 'mother!' ],
         [ [ qw(MyTest::Mother) ], 'mother!' ], # don't smash the cache the second time through
@@ -37,7 +37,7 @@ use warnings;
         [ [ qw(MyTest::Parent) ], 'parent!' ]
     ) {
         my $want = 'child!';
-       
+
         $fqname = 'private';
         is(__PACKAGE__->private, $want, '__PACKAGE__->private ('.__LINE__.')');
         is(__PACKAGE__->$fqname, $want, '__PACKAGE__->$fqname ('.__LINE__.')');

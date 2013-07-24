@@ -1,5 +1,13 @@
 Revision history for Perl extension Method::Lexical.
 
+0.30  Wed Jul 24 17:10:40 2013
+    - document the use of qualified/unqualified method names in option keys
+    - handle unqualified method names in option values
+    - minor code cleanup
+    - new tests:
+        - method_name_value.t
+        - module_autoload_fail.t
+
 0.24  Tue Jul 23 20:49:00 2013
     - RT87218: fix failing tests in perl >= 5.17.5 (thanks, Toby Inkster)
     - allow import args to be passed as a hashref
