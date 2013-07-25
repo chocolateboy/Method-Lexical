@@ -255,7 +255,7 @@ C<Method::Lexical> is a lexically-scoped pragma that implements lexical methods 
 whose use is restricted to the lexical scope in which they are imported or declared.
 
 The C<use Method::Lexical> statement takes a hashref or a list of key/value pairs in which the keys are method
-names and the values are subroutine references or strings containing the package-qualified name of the
+names and the values are subroutine references or strings containing the name of the
 method to be called. Unqualifed method names in keys are installed as methods in the currently-compiling package.
 The following example summarizes the types of keys and values that can be supplied.
 
