@@ -9,7 +9,7 @@ use B::Hooks::EndOfScope;
 use B::Hooks::OP::Check;
 use B::Hooks::OP::Annotation;
 use Carp qw(carp confess);
-use Devel::Pragma qw(ccstash fqname my_hints new_scope on_require);
+use Devel::Pragma qw(fqname my_hints new_scope on_require);
 use XSLoader;
 
 our $VERSION = '0.30';
@@ -72,7 +72,6 @@ sub import {
     my $autoload = delete $bindings{-autoload};
     my $debug = delete $bindings{-debug};
     my $hints = my_hints;
-    my $caller = ccstash();
     my $installed;
 
     if (defined $debug) {
@@ -156,7 +155,7 @@ sub import {
             } || confess "Can't find subroutine for target $name: '$subname'";
         }
 
-        my $fqname = fqname($name, $caller);
+        my $fqname = fqname($name);
 
         if ($DEBUG) {
             if (exists $installed->{$fqname}) {
@@ -180,8 +179,7 @@ sub unimport {
 
     return unless (($^H & 0x20000) && ($class_data = $hints->{$subclass}));
 
-    my $caller = ccstash();
-    my @subs = @_ ? (map { scalar(fqname($_, $caller)) } @_) : keys(%$class_data);
+    my @subs = @_ ? (map { scalar(fqname($_)) } @_) : keys(%$class_data);
     my $installed = $hints->{$METHOD_LEXICAL};
     my $new_installed = { %$installed }; # clone
     my $deleted = 0;
