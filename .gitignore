@@ -11,6 +11,7 @@ nytprof*
 *.patch
 .DS_Store
 MYMETA.yml
+MYMETA.json
 *.o
 *.bs
 Lexical.c

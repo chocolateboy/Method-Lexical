@@ -1,3 +1,4 @@
+cpanfile
 Changes
 Lexical.xs
 lib/Method/Lexical.pm
@@ -7,6 +8,7 @@ META.yml
 mro.h
 ppport.h
 README
+t/00-report-prereqs.t
 t/01_use.t
 t/autoload.t
 t/basic.t
