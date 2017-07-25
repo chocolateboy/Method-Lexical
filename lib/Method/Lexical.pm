@@ -9,7 +9,7 @@ use B::Hooks::EndOfScope;
 use B::Hooks::OP::Check;
 use B::Hooks::OP::Annotation;
 use Carp qw(carp confess);
-use Devel::Pragma qw(fqname my_hints new_scope on_require);
+use Devel::Pragma qw(fqname my_hints new_scope); # on_require);
 use XSLoader;
 
 our $VERSION = '0.30';
@@ -110,7 +110,7 @@ sub import {
             on_scope_end \&xs_leave;
 
             # disable/re-enable check hooks before/after require
-            on_require \&xs_leave, \&xs_enter;
+            # on_require \&xs_leave, \&xs_enter;
 
             xs_enter();
         }
