@@ -2,6 +2,7 @@ cpanfile
 Changes
 Lexical.xs
 lib/Method/Lexical.pm
+LICENSE.md
 Makefile.PL
 MANIFEST
 META.yml
@@ -18,4 +19,3 @@ t/fail.t
 t/fqname.t
 t/method_name_value.t
 t/module_autoload_fail.t
-t/pod.t

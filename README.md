@@ -1,5 +1,9 @@
 # Method::Lexical
 
+[![Build Status](https://secure.travis-ci.org/chocolateboy/Method-Lexical.svg)](http://travis-ci.org/chocolateboy/Method-Lexical)
+[![CPAN Version](https://badge.fury.io/pl/Method-Lexical.svg)](http://badge.fury.io/pl/Method-Lexical)
+[![License](https://img.shields.io/badge/license-artistic-blue.svg)](https://github.com/chocolateboy/Method-Lexical/blob/master/LICENSE.md)
+
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
@@ -275,8 +279,7 @@ The method resolution order for lexical method calls on pre-5.10 perls is curren
 
 # COPYRIGHT AND LICENSE
 
-Copyright (C) 2009-2013 by chocolateboy
+Copyright © 2009-2013 by chocolateboy.
 
-This library is free software; you can redistribute it and/or modify
-it under the same terms as Perl itself, either Perl version 5.8.8 or,
-at your option, any later version of Perl 5 you may have available.
+This is free software; you can redistribute it and/or modify it under the terms of the
+[Artistic License 2.0](http://www.opensource.org/licenses/artistic-license-2.0.php).
